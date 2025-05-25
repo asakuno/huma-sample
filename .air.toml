@@ -1,0 +1,15 @@
+root = "."
+tmp_dir = ".docker/air/tmp"
+
+[build]
+  bin = ".docker/air/tmp/main"
+  cmd = "go build -buildvcs=false -o .docker/air/tmp/main ./cmd/server"
+  include_ext = ["go"]
+  exclude_dir = ["vendor", "tmp"]
+
+[watch]
+  poll = true
+  poll_interval = 500
+
+[log]
+  level = "debug"

@@ -1,0 +1,48 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./.docker/go/Dockerfile
+    container_name: huma-sample-app
+    volumes:
+      - .:/app
+    ports:
+      - 8888:8888
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:latest
+    container_name: huma-sample-nginx
+    ports:
+      - 80:80
+    volumes:
+      - .:/var/www/html
+      - ./.docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  mysql:
+    container_name: huma-sample-mysql
+    build:
+      context: .
+      dockerfile: ./.docker/mysql/Dockerfile
+    platform: linux/amd64
+    environment:
+      MYSQL_DATABASE: database
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - app-data:/var/lib/mysql
+    ports:
+      - 3306:3306
+
+volumes:
+  app-data:
+
+networks:
+  app-network:
+    driver: bridge
