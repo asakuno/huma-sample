@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/asakuno/huma-sample/auth/domain/repository"
 	"github.com/asakuno/huma-sample/auth/domain/service"
 	"github.com/asakuno/huma-sample/auth/infrastructure/cognito"
 	"github.com/asakuno/huma-sample/auth/infrastructure/persistence"
@@ -45,12 +46,15 @@ func NewModule(ctx context.Context, config *Config) (*Module, error) {
 	userRepo := persistence.NewUserRepository(config.DB)
 	
 	// Choose auth repository based on environment
-	var authRepo interface{}
-	var err error
+	var authRepo repository.AuthRepository
 	
 	// Check if we should use mock Cognito (for development)
 	if shouldUseMockCognito() {
 		fmt.Println("🔧 Using mock Cognito for development environment")
+		fmt.Println("📝 Available test users:")
+		fmt.Println("   - Username: admin, Password: password123")
+		fmt.Println("   - Username: testuser, Password: password123")
+		fmt.Println("   - Username: developer, Password: password123")
 		authRepo = cognito.NewMockAuthRepository()
 	} else {
 		// Validate Cognito configuration for real Cognito
@@ -69,9 +73,7 @@ func NewModule(ctx context.Context, config *Config) (*Module, error) {
 	}
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, authRepo.(interface {
-		Authenticate(ctx context.Context, req *interface{}) (*interface{}, error) // This is a simplified interface casting
-	}))
+	authService := service.NewAuthService(userRepo, authRepo)
 
 	// Initialize use cases
 	authUsecase := usecase.NewAuthUsecase(authService)
