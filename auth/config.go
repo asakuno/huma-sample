@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/asakuno/huma-sample/auth/domain/service"
 	"github.com/asakuno/huma-sample/auth/infrastructure/cognito"
@@ -39,23 +41,37 @@ func NewModule(ctx context.Context, config *Config) (*Module, error) {
 		return nil, fmt.Errorf("cognito config is required")
 	}
 
-	// Validate Cognito configuration
-	if err := config.Cognito.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid cognito config: %w", err)
-	}
-
-	// Initialize Cognito client
-	cognitoClient, err := cognito.NewClient(ctx, config.Cognito)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cognito client: %w", err)
-	}
-
 	// Initialize repositories
 	userRepo := persistence.NewUserRepository(config.DB)
-	authRepo := cognito.NewAuthRepository(cognitoClient)
+	
+	// Choose auth repository based on environment
+	var authRepo interface{}
+	var err error
+	
+	// Check if we should use mock Cognito (for development)
+	if shouldUseMockCognito() {
+		fmt.Println("🔧 Using mock Cognito for development environment")
+		authRepo = cognito.NewMockAuthRepository()
+	} else {
+		// Validate Cognito configuration for real Cognito
+		if err := config.Cognito.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid cognito config: %w", err)
+		}
+
+		// Initialize real Cognito client
+		cognitoClient, err := cognito.NewClient(ctx, config.Cognito)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cognito client: %w", err)
+		}
+		
+		authRepo = cognito.NewAuthRepository(cognitoClient)
+		fmt.Println("🔗 Using real AWS Cognito")
+	}
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, authRepo)
+	authService := service.NewAuthService(userRepo, authRepo.(interface {
+		Authenticate(ctx context.Context, req *interface{}) (*interface{}, error) // This is a simplified interface casting
+	}))
 
 	// Initialize use cases
 	authUsecase := usecase.NewAuthUsecase(authService)
@@ -76,4 +92,27 @@ func NewConfig(db *sql.DB) *Config {
 		Cognito: cognito.NewConfig(),
 		DB:      db,
 	}
+}
+
+// shouldUseMockCognito determines whether to use mock Cognito based on environment
+func shouldUseMockCognito() bool {
+	// Check explicit mock flag
+	if mockCognito := os.Getenv("MOCK_COGNITO"); mockCognito == "true" {
+		return true
+	}
+
+	// Check if we're in development mode
+	if appEnv := os.Getenv("APP_ENV"); appEnv == "development" || appEnv == "dev" {
+		// In development, use mock if Cognito credentials look like dummy values
+		userPoolID := os.Getenv("COGNITO_USER_POOL_ID")
+		clientID := os.Getenv("COGNITO_CLIENT_ID")
+		
+		if strings.Contains(userPoolID, "XXXXXXXXX") || 
+		   strings.Contains(clientID, "dummy") ||
+		   userPoolID == "" || clientID == "" {
+			return true
+		}
+	}
+
+	return false
 }
