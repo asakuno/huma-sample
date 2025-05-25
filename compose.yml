@@ -3,17 +3,23 @@ services:
     build:
       context: .
       dockerfile: ./.docker/go/Dockerfile
-    container_name: huma-sample-app
+    container_name: huma-sample-app-dev
     volumes:
       - .:/app
     ports:
       - 8888:8888
+    environment:
+      - APP_ENV=development
+    env_file:
+      - .env
+    depends_on:
+      - mysql
     networks:
       - app-network
 
   nginx:
     image: nginx:latest
-    container_name: huma-sample-nginx
+    container_name: huma-sample-nginx-dev
     ports:
       - 80:80
     volumes:
@@ -25,7 +31,7 @@ services:
       - app-network
 
   mysql:
-    container_name: huma-sample-mysql
+    container_name: huma-sample-mysql-dev
     build:
       context: .
       dockerfile: ./.docker/mysql/Dockerfile
@@ -36,12 +42,26 @@ services:
       MYSQL_PASSWORD: password
       MYSQL_ROOT_PASSWORD: password
     volumes:
-      - app-data:/var/lib/mysql
+      - app-data-dev:/var/lib/mysql
+      - ./auth/migrations:/docker-entrypoint-initdb.d
     ports:
       - 3306:3306
+    networks:
+      - app-network
+
+  # 開発用のAdminer（データベース管理ツール）
+  adminer:
+    image: adminer
+    container_name: huma-sample-adminer-dev
+    ports:
+      - 8080:8080
+    depends_on:
+      - mysql
+    networks:
+      - app-network
 
 volumes:
-  app-data:
+  app-data-dev:
 
 networks:
   app-network:
