@@ -46,13 +46,38 @@ func main() {
 	db := config.SetupDatabaseConnection()
 	defer config.CloseDatabaseConnection(db)
 
-	// Run migrations if --migrate flag is provided
-	if len(os.Args) > 1 && os.Args[1] == "--migrate" {
-		if err := migration.Migrate(db); err != nil {
-			log.Fatalf("Migration failed: %v", err)
+	// Handle command line arguments
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--migrate":
+			if err := migration.Migrate(db); err != nil {
+				log.Fatalf("Migration failed: %v", err)
+			}
+			log.Println("Migration completed successfully")
+			return
+		case "--seed":
+			if err := migration.Seed(db); err != nil {
+				log.Fatalf("Seeding failed: %v", err)
+			}
+			log.Println("Seeding completed successfully")
+			return
+		case "--migrate-seed":
+			if err := migration.Migrate(db); err != nil {
+				log.Fatalf("Migration failed: %v", err)
+			}
+			log.Println("Migration completed successfully")
+			if err := migration.Seed(db); err != nil {
+				log.Fatalf("Seeding failed: %v", err)
+			}
+			log.Println("Seeding completed successfully")
+			return
+		case "--rollback":
+			if err := migration.Rollback(db); err != nil {
+				log.Fatalf("Rollback failed: %v", err)
+			}
+			log.Println("Rollback completed successfully")
+			return
 		}
-		log.Println("Migration completed successfully")
-		return
 	}
 
 	// Create router with middleware
