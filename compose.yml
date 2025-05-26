@@ -8,6 +8,16 @@ services:
       - .:/app
     ports:
       - 8888:8888
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=user
+      - DB_PASS=password
+      - DB_NAME=database
+      - DB_PORT=3306
+      - APP_ENV=development
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -39,6 +49,12 @@ services:
       - app-data:/var/lib/mysql
     ports:
       - 3306:3306
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
 volumes:
   app-data:
