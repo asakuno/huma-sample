@@ -3,7 +3,7 @@ package migration
 import (
 	"log"
 
-	"github.com/asakuno/huma-sample/app/modules/users/model"
+	"github.com/asakuno/huma-sample/app/modules/users"
 	"gorm.io/gorm"
 )
 
@@ -13,7 +13,7 @@ func Migrate(db *gorm.DB) error {
 
 	// Auto migrate models
 	if err := db.AutoMigrate(
-		&model.User{},
+		&users.User{},
 	); err != nil {
 		return err
 	}
@@ -27,7 +27,7 @@ func Rollback(db *gorm.DB) error {
 	log.Println("Rolling back database migrations...")
 
 	// Drop tables in reverse order
-	if err := db.Migrator().DropTable(&model.User{}); err != nil {
+	if err := db.Migrator().DropTable(&users.User{}); err != nil {
 		return err
 	}
 
@@ -40,7 +40,7 @@ func Seed(db *gorm.DB) error {
 	log.Println("Seeding database with initial data...")
 
 	// Create sample users
-	users := []model.User{
+	sampleUsers := []users.User{
 		{
 			Name:     "Admin User",
 			Email:    "admin@example.com",
@@ -57,9 +57,9 @@ func Seed(db *gorm.DB) error {
 		},
 	}
 
-	for _, user := range users {
+	for _, user := range sampleUsers {
 		// Check if user already exists
-		var existingUser model.User
+		var existingUser users.User
 		if err := db.Where("email = ?", user.Email).First(&existingUser).Error; err == nil {
 			log.Printf("User %s already exists, skipping...", user.Email)
 			continue
