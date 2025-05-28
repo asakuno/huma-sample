@@ -7,6 +7,7 @@
 - **フレームワーク**: Huma v2 (OpenAPI準拠)
 - **ルーター**: Chi
 - **データベース**: MySQL 8.0 with GORM
+- **認証**: AWS Cognito / Cognito Local
 - **開発環境**: Docker Compose + Air (ホットリロード)
 
 ## 技術スタック
@@ -15,6 +16,7 @@
 - **Chi**: 軽量なHTTPルーター
 - **GORM**: Go用のORM
 - **MySQL**: リレーショナルデータベース
+- **AWS Cognito**: ユーザー認証・管理
 - **Docker**: コンテナ化
 
 ## プロジェクト構造
@@ -27,6 +29,8 @@
 │   ├── config/           # 設定管理
 │   ├── middleware/       # HTTPミドルウェア
 │   ├── modules/          # ビジネスモジュール
+│   │   ├── auth/        # 認証モジュール (Cognito統合)
+│   │   └── users/       # ユーザー管理モジュール
 │   └── shared/           # 共通ユーティリティ
 ├── pkg/                   # 再利用可能なパッケージ
 ├── .docker/              # Docker設定
@@ -46,7 +50,7 @@
 ```bash
 git clone https://github.com/asakuno/huma-sample.git
 cd huma-sample
-git checkout master-dev
+git checkout master-dev2
 ```
 
 2. **環境変数の設定**
@@ -67,6 +71,46 @@ docker-compose up -d
 # データベースが起動するまで待機
 make migrate-seed
 ```
+
+## 認証機能 (AWS Cognito)
+
+### ローカル開発環境 (Cognito Local)
+開発環境では、AWS Cognitoの代わりに`cognito-local`を使用してローカルで認証機能をテストできます。
+
+```bash
+# docker-compose.ymlに既に設定済み
+# cognito-localは自動的に起動します
+```
+
+**ローカルCognito設定:**
+- エンドポイント: `http://localhost:9229`
+- User Pool ID: `local_test_pool`
+- Client ID: `local_test_client`
+
+### 本番環境 (AWS Cognito)
+本番環境では、実際のAWS Cognitoを使用します。
+
+1. **AWS Cognitoユーザープールの作成**
+2. **アプリクライアントの作成**
+3. **環境変数の設定**
+```bash
+USE_COGNITO_LOCAL=false
+AWS_REGION=ap-northeast-1
+COGNITO_USER_POOL_ID=your-actual-pool-id
+COGNITO_APP_CLIENT_ID=your-actual-client-id
+COGNITO_APP_CLIENT_SECRET=your-actual-client-secret  # オプション
+```
+
+### 認証エンドポイント
+- `POST /auth/signup` - ユーザー登録
+- `POST /auth/verify-email` - メール確認
+- `POST /auth/login` - ログイン
+- `POST /auth/refresh` - トークンリフレッシュ
+- `POST /auth/forgot-password` - パスワードリセット要求
+- `POST /auth/reset-password` - パスワードリセット実行
+- `POST /auth/change-password` - パスワード変更
+- `POST /auth/logout` - ログアウト
+- `GET /auth/profile` - プロフィール取得
 
 ## 使用方法
 
@@ -135,16 +179,17 @@ make fresh         # クリーンアップ後に初期化
 ### User モデル
 ```go
 type User struct {
-    ID        uint           `gorm:"primarykey" json:"id"`
-    CreatedAt time.Time      `json:"created_at"`
-    UpdatedAt time.Time      `json:"updated_at"`
-    DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+    ID           uint           `gorm:"primarykey" json:"id"`
+    CreatedAt    time.Time      `json:"created_at"`
+    UpdatedAt    time.Time      `json:"updated_at"`
+    DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
     
-    Name     string `gorm:"type:varchar(100);not null" json:"name"`
-    Email    string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-    Password string `gorm:"type:varchar(255);not null" json:"-"`
-    Role     string `gorm:"type:varchar(50);default:'user'" json:"role"`
-    IsActive bool   `gorm:"default:true" json:"is_active"`
+    Name         string         `gorm:"type:varchar(100);not null" json:"name"`
+    Email        string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+    Password     string         `gorm:"type:varchar(255);not null" json:"-"`
+    Role         string         `gorm:"type:varchar(50);default:'user'" json:"role"`
+    IsActive     bool           `gorm:"default:true" json:"is_active"`
+    LastLoginAt  *time.Time     `gorm:"type:timestamp;null" json:"last_login_at,omitempty"`
 }
 ```
 
@@ -162,6 +207,8 @@ type User struct {
 | `DB_PORT` | データベースポート | `3306` |
 | `GOLANG_PORT` | アプリケーションポート | `8888` |
 | `JWT_SECRET` | JWT秘密鍵 | `secret_key` |
+| `USE_COGNITO_LOCAL` | ローカルCognito使用フラグ | `true` |
+| `COGNITO_LOCAL_ENDPOINT` | ローカルCognitoエンドポイント | `http://cognito-local:9229` |
 
 ## API仕様
 
@@ -186,15 +233,25 @@ GET /health
 }
 ```
 
-#### Greeting
+#### ユーザー登録
 ```http
-GET /greeting/world
+POST /auth/signup
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "username": "testuser",
+  "password": "Password123!",
+  "name": "Test User"
+}
 ```
 
 レスポンス:
 ```json
 {
-  "message": "Hello, world!"
+  "success": true,
+  "message": "User registered successfully. Please check your email for verification code.",
+  "user_id": "xxxxx-xxxxx-xxxxx"
 }
 ```
 
@@ -215,6 +272,7 @@ docker-compose logs mysql
 # 使用中のポートを確認
 lsof -i :8888
 lsof -i :3306
+lsof -i :9229  # Cognito Local
 ```
 
 3. **マイグレーションエラー**
@@ -222,6 +280,14 @@ lsof -i :3306
 # データベースを再作成
 make clean
 make init
+```
+
+4. **Cognito Local接続エラー**
+```bash
+# Cognito Localのログ確認
+docker-compose logs cognito-local
+# コンテナ再起動
+docker-compose restart cognito-local
 ```
 
 ### ログ確認
@@ -235,6 +301,7 @@ make dev-logs
 # 特定のサービス
 docker-compose logs mysql
 docker-compose logs nginx
+docker-compose logs cognito-local
 ```
 
 ## 貢献
