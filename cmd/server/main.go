@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/asakuno/huma-sample/app/config"
+	"github.com/asakuno/huma-sample/app/modules/auth"
 	"github.com/asakuno/huma-sample/cmd/migration"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -159,4 +160,9 @@ func registerRoutes(api huma.API, db *gorm.DB) {
 		resp.Body.Message = fmt.Sprintf("Hello, %s!", input.Name)
 		return resp, nil
 	})
+
+	// Register auth routes
+	if err := auth.RegisterRoutes(api, db); err != nil {
+		log.Fatalf("Failed to register auth routes: %v", err)
+	}
 }
