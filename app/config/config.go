@@ -45,6 +45,8 @@ type CognitoConfig struct {
 	UserPoolID       string
 	AppClientID      string
 	AppClientSecret  string
+	UseLocal         bool
+	LocalEndpoint    string
 }
 
 // AWSConfig holds AWS configuration
@@ -76,6 +78,25 @@ func LoadConfig() *Config {
 		isLogger = true
 	}
 
+	useCognitoLocal, err := strconv.ParseBool(getEnv("USE_COGNITO_LOCAL", "false"))
+	if err != nil {
+		log.Printf("Invalid USE_COGNITO_LOCAL value, using default: false")
+		useCognitoLocal = false
+	}
+
+	// Determine Cognito configuration based on local/production mode
+	userPoolID := getEnv("COGNITO_USER_POOL_ID", "")
+	appClientID := getEnv("COGNITO_APP_CLIENT_ID", "")
+	appClientSecret := getEnv("COGNITO_APP_CLIENT_SECRET", "")
+
+	if useCognitoLocal {
+		// Override with local values if using local Cognito
+		userPoolID = getEnv("COGNITO_LOCAL_USER_POOL_ID", "local_test_pool")
+		appClientID = getEnv("COGNITO_LOCAL_APP_CLIENT_ID", "local_test_client")
+		appClientSecret = "" // Local Cognito doesn't use client secret
+		log.Println("Using local Cognito configuration")
+	}
+
 	config := &Config{
 		AppName: getEnv("APP_NAME", "huma-sample"),
 		AppEnv:  getEnv("APP_ENV", "development"),
@@ -101,9 +122,11 @@ func LoadConfig() *Config {
 			IsEnabled: isLogger,
 		},
 		Cognito: CognitoConfig{
-			UserPoolID:      getEnv("COGNITO_USER_POOL_ID", ""),
-			AppClientID:     getEnv("COGNITO_APP_CLIENT_ID", ""),
-			AppClientSecret: getEnv("COGNITO_APP_CLIENT_SECRET", ""),
+			UserPoolID:      userPoolID,
+			AppClientID:     appClientID,
+			AppClientSecret: appClientSecret,
+			UseLocal:        useCognitoLocal,
+			LocalEndpoint:   getEnv("COGNITO_LOCAL_ENDPOINT", "http://localhost:9229"),
 		},
 		AWS: AWSConfig{
 			Region: getEnv("AWS_REGION", "ap-northeast-1"),
