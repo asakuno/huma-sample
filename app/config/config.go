@@ -17,6 +17,8 @@ type Config struct {
 	JWT      JWTConfig
 	SMTP     SMTPConfig
 	Logger   LoggerConfig
+	Cognito  CognitoConfig
+	AWS      AWSConfig
 }
 
 // JWTConfig holds JWT configuration
@@ -36,6 +38,18 @@ type SMTPConfig struct {
 // LoggerConfig holds logger configuration
 type LoggerConfig struct {
 	IsEnabled bool
+}
+
+// CognitoConfig holds AWS Cognito configuration
+type CognitoConfig struct {
+	UserPoolID       string
+	AppClientID      string
+	AppClientSecret  string
+}
+
+// AWSConfig holds AWS configuration
+type AWSConfig struct {
+	Region string
 }
 
 var AppConfig *Config
@@ -85,6 +99,14 @@ func LoadConfig() *Config {
 		},
 		Logger: LoggerConfig{
 			IsEnabled: isLogger,
+		},
+		Cognito: CognitoConfig{
+			UserPoolID:      getEnv("COGNITO_USER_POOL_ID", ""),
+			AppClientID:     getEnv("COGNITO_APP_CLIENT_ID", ""),
+			AppClientSecret: getEnv("COGNITO_APP_CLIENT_SECRET", ""),
+		},
+		AWS: AWSConfig{
+			Region: getEnv("AWS_REGION", "ap-northeast-1"),
 		},
 	}
 
