@@ -15,9 +15,13 @@ services:
       - DB_NAME=database
       - DB_PORT=3306
       - APP_ENV=development
+      - USE_COGNITO_LOCAL=true
+      - COGNITO_LOCAL_ENDPOINT=http://cognito-local:9229
     depends_on:
       mysql:
         condition: service_healthy
+      cognito-local:
+        condition: service_started
     networks:
       - app-network
 
@@ -55,6 +59,19 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
+
+  cognito-local:
+    image: jagregory/cognito-local:latest
+    container_name: huma-sample-cognito-local
+    ports:
+      - 9229:9229
+    volumes:
+      - ./.docker/cognito:/app/.cognito
+    environment:
+      - COGNITO_USER_POOL_ID=local_test_pool
+      - COGNITO_USER_POOL_CLIENT_ID=local_test_client
+    networks:
+      - app-network
 
 volumes:
   app-data:
