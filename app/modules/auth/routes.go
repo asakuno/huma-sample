@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"context"
 	
 	appConfig "github.com/asakuno/huma-sample/app/config"
@@ -17,9 +18,35 @@ func RegisterRoutes(api huma.API, db *gorm.DB) error {
 	
 	// Create AWS configuration
 	ctx := context.Background()
-	awsCfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(cfg.AWS.Region),
-	)
+	
+	var awsCfg aws.Config
+	var err error
+	
+	if cfg.Cognito.UseLocal {
+		// For local development, configure to use cognito-local
+		awsCfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(cfg.AWS.Region),
+			config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+				func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+					if service == cognitoidentityprovider.ServiceID {
+						return aws.Endpoint{
+							URL:           cfg.Cognito.LocalEndpoint,
+							SigningRegion: cfg.AWS.Region,
+						}, nil
+					}
+					// Use default endpoint for other services
+					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+				})),
+			// Disable SSL for local development
+			config.WithClientLogMode(aws.LogRetries | aws.LogRequestWithBody | aws.LogResponseWithBody),
+		)
+	} else {
+		// For production, use standard AWS configuration
+		awsCfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(cfg.AWS.Region),
+		)
+	}
+	
 	if err != nil {
 		return err
 	}
