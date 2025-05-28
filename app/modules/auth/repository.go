@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"time"
 
@@ -276,12 +279,15 @@ func (r *AuthRepository) UpdateUser(user *users.User) error {
 
 // UpdateLastLogin updates the last login timestamp
 func (r *AuthRepository) UpdateLastLogin(userID uint) error {
-	return r.db.Model(&users.User{}).Where("id = ?", userID).Update("last_login_at", time.Now()).Error
+	now := time.Now()
+	return r.db.Model(&users.User{}).Where("id = ?", userID).Update("last_login_at", &now).Error
 }
 
 // Helper function to calculate secret hash for Cognito
 func calculateSecretHash(username, clientID, clientSecret string) string {
-	// Implementation would use HMAC SHA256
-	// This is a placeholder - actual implementation would be needed
-	return ""
+	message := username + clientID
+	key := []byte(clientSecret)
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(message))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
