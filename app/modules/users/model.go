@@ -13,11 +13,12 @@ type User struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 	
-	Name     string `gorm:"type:varchar(100);not null" json:"name" validate:"required,min=2,max=100"`
-	Email    string `gorm:"type:varchar(255);uniqueIndex;not null" json:"email" validate:"required,email"`
-	Password string `gorm:"type:varchar(255);not null" json:"-" validate:"required,min=8"`
-	Role     string `gorm:"type:varchar(50);default:'user'" json:"role"`
-	IsActive bool   `gorm:"default:true" json:"is_active"`
+	Name         string     `gorm:"type:varchar(100);not null" json:"name" validate:"required,min=2,max=100"`
+	Email        string     `gorm:"type:varchar(255);uniqueIndex;not null" json:"email" validate:"required,email"`
+	Password     string     `gorm:"type:varchar(255);not null" json:"-" validate:"required,min=8"`
+	Role         string     `gorm:"type:varchar(50);default:'user'" json:"role"`
+	IsActive     bool       `gorm:"default:true" json:"is_active"`
+	LastLoginAt  *time.Time `gorm:"type:timestamp;null" json:"last_login_at,omitempty"`
 }
 
 // TableName returns the table name for the User model
