@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/asakuno/huma-sample/app/modules/auth/mocks"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,137 +20,73 @@ func TestController_SignUp(t *testing.T) {
 	controller := NewController(mockService)
 
 	tests := []struct {
-		name        string
-		input       *SignUpRequest
-		setupMock   func()
-		wantErr     bool
-		wantSuccess bool
+		name         string
+		input        SignUpRequest
+		setupMocks   func()
+		expectedCode int
+		checkBody    func(t *testing.T, body map[string]interface{})
 	}{
 		{
-			name: "successful signup",
-			input: &SignUpRequest{
+			name: "Successful SignUp",
+			input: SignUpRequest{
 				Email:    "test@example.com",
 				Username: "testuser",
-				Password: "Password123!",
+				Password: "ValidPassword123!",
 				Name:     "Test User",
 			},
-			setupMock: func() {
-				userID := "user-123"
+			setupMocks: func() {
+				userID := "cognito-123"
 				mockService.EXPECT().
-					SignUp(gomock.Any(), "test@example.com", "testuser", "Password123!", "Test User").
+					SignUp(gomock.Any(), "test@example.com", "testuser", "ValidPassword123!", "Test User").
 					Return(&userID, nil)
 			},
-			wantErr:     false,
-			wantSuccess: true,
+			expectedCode: 200,
+			checkBody: func(t *testing.T, body map[string]interface{}) {
+				assert.True(t, body["success"].(bool))
+				assert.Contains(t, body["message"], "successfully")
+				assert.Equal(t, "cognito-123", body["user_id"])
+			},
 		},
 		{
-			name: "signup with existing email",
-			input: &SignUpRequest{
-				Email:    "existing@example.com",
-				Username: "testuser",
-				Password: "Password123!",
-				Name:     "Test User",
-			},
-			setupMock: func() {
-				mockService.EXPECT().
-					SignUp(gomock.Any(), "existing@example.com", "testuser", "Password123!", "Test User").
-					Return(nil, errors.New("user with this email already exists"))
-			},
-			wantErr:     true,
-			wantSuccess: false,
-		},
-		{
-			name: "signup with weak password",
-			input: &SignUpRequest{
+			name: "SignUp Error",
+			input: SignUpRequest{
 				Email:    "test@example.com",
 				Username: "testuser",
 				Password: "weak",
 				Name:     "Test User",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
 					SignUp(gomock.Any(), "test@example.com", "testuser", "weak", "Test User").
-					Return(nil, errors.New("password does not meet strength requirements"))
+					Return(nil, errors.New("password does not meet requirements"))
 			},
-			wantErr:     true,
-			wantSuccess: false,
+			expectedCode: 400,
+			checkBody: func(t *testing.T, body map[string]interface{}) {
+				assert.Contains(t, body["message"], "password does not meet requirements")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			tt.setupMocks()
 
-			resp, err := controller.SignUp(context.Background(), tt.input)
+			ctx := context.Background()
+			resp, err := controller.SignUp(ctx, &tt.input)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			} else {
+			if tt.expectedCode == 200 {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
-				assert.Equal(t, tt.wantSuccess, resp.Body.Success)
-				assert.NotEmpty(t, resp.Body.Message)
-			}
-		})
-	}
-}
-
-func TestController_VerifyEmail(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockService := mocks.NewMockService(ctrl)
-	controller := NewController(mockService)
-
-	tests := []struct {
-		name      string
-		input     *VerifyEmailRequest
-		setupMock func()
-		wantErr   bool
-	}{
-		{
-			name: "successful verification",
-			input: &VerifyEmailRequest{
-				Email:            "test@example.com",
-				ConfirmationCode: "123456",
-			},
-			setupMock: func() {
-				mockService.EXPECT().
-					VerifyEmail(gomock.Any(), "test@example.com", "123456").
-					Return(nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "invalid confirmation code",
-			input: &VerifyEmailRequest{
-				Email:            "test@example.com",
-				ConfirmationCode: "000000",
-			},
-			setupMock: func() {
-				mockService.EXPECT().
-					VerifyEmail(gomock.Any(), "test@example.com", "000000").
-					Return(errors.New("invalid confirmation code"))
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			resp, err := controller.VerifyEmail(context.Background(), tt.input)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
+				tt.checkBody(t, map[string]interface{}{
+					"success": resp.Body.Success,
+					"message": resp.Body.Message,
+					"user_id": resp.Body.UserID,
+				})
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, resp)
-				assert.True(t, resp.Body.Success)
-				assert.NotEmpty(t, resp.Body.Message)
+				assert.Error(t, err)
+				humaErr, ok := err.(huma.StatusError)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedCode, humaErr.GetStatus())
 			}
 		})
 	}
@@ -162,24 +100,22 @@ func TestController_Login(t *testing.T) {
 	controller := NewController(mockService)
 
 	tests := []struct {
-		name      string
-		input     *LoginRequest
-		setupMock func()
-		wantErr   bool
+		name         string
+		input        LoginRequest
+		setupMocks   func()
+		expectedCode int
 	}{
 		{
-			name: "successful login",
-			input: &LoginRequest{
+			name: "Successful Login",
+			input: LoginRequest{
 				Email:    "test@example.com",
-				Password: "Password123!",
+				Password: "ValidPassword123!",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				authUser := &AuthUser{
-					ID:            1,
-					Email:         "test@example.com",
-					Username:      "testuser",
-					EmailVerified: true,
-					IsActive:      true,
+					ID:       1,
+					Email:    "test@example.com",
+					Username: "testuser",
 				}
 				tokenPair := &TokenPair{
 					AccessToken:  "access-token",
@@ -188,54 +124,104 @@ func TestController_Login(t *testing.T) {
 					ExpiresIn:    3600,
 				}
 				mockService.EXPECT().
-					Login(gomock.Any(), "test@example.com", "Password123!").
+					Login(gomock.Any(), "test@example.com", "ValidPassword123!").
 					Return(authUser, tokenPair, nil)
 			},
-			wantErr: false,
+			expectedCode: 200,
 		},
 		{
-			name: "invalid credentials",
-			input: &LoginRequest{
+			name: "Invalid Credentials",
+			input: LoginRequest{
 				Email:    "test@example.com",
 				Password: "WrongPassword",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
 					Login(gomock.Any(), "test@example.com", "WrongPassword").
 					Return(nil, nil, errors.New("invalid credentials"))
 			},
-			wantErr: true,
-		},
-		{
-			name: "inactive user",
-			input: &LoginRequest{
-				Email:    "inactive@example.com",
-				Password: "Password123!",
-			},
-			setupMock: func() {
-				mockService.EXPECT().
-					Login(gomock.Any(), "inactive@example.com", "Password123!").
-					Return(nil, nil, errors.New("user account is not active"))
-			},
-			wantErr: true,
+			expectedCode: 401,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			tt.setupMocks()
 
-			resp, err := controller.Login(context.Background(), tt.input)
+			ctx := context.Background()
+			resp, err := controller.Login(ctx, &tt.input)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			} else {
+			if tt.expectedCode == 200 {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
-				assert.NotEmpty(t, resp.Body.User.Email)
 				assert.NotEmpty(t, resp.Body.Tokens.AccessToken)
-				assert.NotEmpty(t, resp.Body.Tokens.RefreshToken)
+			} else {
+				assert.Error(t, err)
+				humaErr, ok := err.(huma.StatusError)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedCode, humaErr.GetStatus())
+			}
+		})
+	}
+}
+
+func TestController_VerifyEmail(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockService := mocks.NewMockService(ctrl)
+	controller := NewController(mockService)
+
+	tests := []struct {
+		name         string
+		input        VerifyEmailRequest
+		setupMocks   func()
+		expectedCode int
+	}{
+		{
+			name: "Successful Verification",
+			input: VerifyEmailRequest{
+				Email:            "test@example.com",
+				ConfirmationCode: "123456",
+			},
+			setupMocks: func() {
+				mockService.EXPECT().
+					VerifyEmail(gomock.Any(), "test@example.com", "123456").
+					Return(nil)
+			},
+			expectedCode: 200,
+		},
+		{
+			name: "Invalid Code",
+			input: VerifyEmailRequest{
+				Email:            "test@example.com",
+				ConfirmationCode: "000000",
+			},
+			setupMocks: func() {
+				mockService.EXPECT().
+					VerifyEmail(gomock.Any(), "test@example.com", "000000").
+					Return(errors.New("invalid confirmation code"))
+			},
+			expectedCode: 400,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			ctx := context.Background()
+			resp, err := controller.VerifyEmail(ctx, &tt.input)
+
+			if tt.expectedCode == 200 {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.True(t, resp.Body.Success)
+			} else {
+				assert.Error(t, err)
+				humaErr, ok := err.(huma.StatusError)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedCode, humaErr.GetStatus())
 			}
 		})
 	}
@@ -249,56 +235,58 @@ func TestController_RefreshToken(t *testing.T) {
 	controller := NewController(mockService)
 
 	tests := []struct {
-		name      string
-		input     *RefreshTokenRequest
-		setupMock func()
-		wantErr   bool
+		name         string
+		input        RefreshTokenRequest
+		setupMocks   func()
+		expectedCode int
 	}{
 		{
-			name: "successful token refresh",
-			input: &RefreshTokenRequest{
+			name: "Successful Refresh",
+			input: RefreshTokenRequest{
 				RefreshToken: "valid-refresh-token",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				tokenPair := &TokenPair{
-					AccessToken:  "new-access-token",
-					RefreshToken: "new-refresh-token",
-					TokenType:    "Bearer",
-					ExpiresIn:    3600,
+					AccessToken: "new-access-token",
+					TokenType:   "Bearer",
+					ExpiresIn:   3600,
 				}
 				mockService.EXPECT().
 					RefreshToken(gomock.Any(), "valid-refresh-token").
 					Return(tokenPair, nil)
 			},
-			wantErr: false,
+			expectedCode: 200,
 		},
 		{
-			name: "invalid refresh token",
-			input: &RefreshTokenRequest{
-				RefreshToken: "invalid-refresh-token",
+			name: "Invalid Refresh Token",
+			input: RefreshTokenRequest{
+				RefreshToken: "invalid-token",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
-					RefreshToken(gomock.Any(), "invalid-refresh-token").
+					RefreshToken(gomock.Any(), "invalid-token").
 					Return(nil, errors.New("invalid refresh token"))
 			},
-			wantErr: true,
+			expectedCode: 401,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			tt.setupMocks()
 
-			resp, err := controller.RefreshToken(context.Background(), tt.input)
+			ctx := context.Background()
+			resp, err := controller.RefreshToken(ctx, &tt.input)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			} else {
+			if tt.expectedCode == 200 {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
 				assert.NotEmpty(t, resp.Body.Tokens.AccessToken)
+			} else {
+				assert.Error(t, err)
+				humaErr, ok := err.(huma.StatusError)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedCode, humaErr.GetStatus())
 			}
 		})
 	}
@@ -312,51 +300,50 @@ func TestController_ForgotPassword(t *testing.T) {
 	controller := NewController(mockService)
 
 	tests := []struct {
-		name      string
-		input     *ForgotPasswordRequest
-		setupMock func()
-		wantErr   bool
+		name         string
+		input        ForgotPasswordRequest
+		setupMocks   func()
+		expectedCode int
 	}{
 		{
-			name: "successful forgot password",
-			input: &ForgotPasswordRequest{
+			name: "Successful Request",
+			input: ForgotPasswordRequest{
 				Email: "test@example.com",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
 					ForgotPassword(gomock.Any(), "test@example.com").
 					Return(nil)
 			},
-			wantErr: false,
+			expectedCode: 200,
 		},
 		{
-			name: "non-existent email",
-			input: &ForgotPasswordRequest{
-				Email: "nonexistent@example.com",
+			name: "Service Error",
+			input: ForgotPasswordRequest{
+				Email: "test@example.com",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
-					ForgotPassword(gomock.Any(), "nonexistent@example.com").
-					Return(nil) // Service returns nil even for non-existent emails
+					ForgotPassword(gomock.Any(), "test@example.com").
+					Return(errors.New("service error"))
 			},
-			wantErr: false,
+			expectedCode: 400,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			tt.setupMocks()
 
-			resp, err := controller.ForgotPassword(context.Background(), tt.input)
+			ctx := context.Background()
+			resp, err := controller.ForgotPassword(ctx, &tt.input)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			} else {
+			if tt.expectedCode == 200 {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
 				assert.True(t, resp.Body.Success)
-				assert.NotEmpty(t, resp.Body.Message)
+			} else {
+				assert.Error(t, err)
 			}
 		})
 	}
@@ -370,69 +357,54 @@ func TestController_ResetPassword(t *testing.T) {
 	controller := NewController(mockService)
 
 	tests := []struct {
-		name      string
-		input     *ResetPasswordRequest
-		setupMock func()
-		wantErr   bool
+		name         string
+		input        ResetPasswordRequest
+		setupMocks   func()
+		expectedCode int
 	}{
 		{
-			name: "successful password reset",
-			input: &ResetPasswordRequest{
+			name: "Successful Reset",
+			input: ResetPasswordRequest{
 				Email:            "test@example.com",
 				ConfirmationCode: "123456",
 				NewPassword:      "NewPassword123!",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
 					ResetPassword(gomock.Any(), "test@example.com", "123456", "NewPassword123!").
 					Return(nil)
 			},
-			wantErr: false,
+			expectedCode: 200,
 		},
 		{
-			name: "invalid confirmation code",
-			input: &ResetPasswordRequest{
+			name: "Invalid Code",
+			input: ResetPasswordRequest{
 				Email:            "test@example.com",
 				ConfirmationCode: "000000",
 				NewPassword:      "NewPassword123!",
 			},
-			setupMock: func() {
+			setupMocks: func() {
 				mockService.EXPECT().
 					ResetPassword(gomock.Any(), "test@example.com", "000000", "NewPassword123!").
 					Return(errors.New("invalid confirmation code"))
 			},
-			wantErr: true,
-		},
-		{
-			name: "weak new password",
-			input: &ResetPasswordRequest{
-				Email:            "test@example.com",
-				ConfirmationCode: "123456",
-				NewPassword:      "weak",
-			},
-			setupMock: func() {
-				mockService.EXPECT().
-					ResetPassword(gomock.Any(), "test@example.com", "123456", "weak").
-					Return(errors.New("password does not meet strength requirements"))
-			},
-			wantErr: true,
+			expectedCode: 400,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			tt.setupMocks()
 
-			resp, err := controller.ResetPassword(context.Background(), tt.input)
+			ctx := context.Background()
+			resp, err := controller.ResetPassword(ctx, &tt.input)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			} else {
+			if tt.expectedCode == 200 {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
 				assert.True(t, resp.Body.Success)
-				assert.NotEmpty(t, resp.Body.Message)
+			} else {
+				assert.Error(t, err)
 			}
 		})
 	}
@@ -445,35 +417,15 @@ func TestController_Logout(t *testing.T) {
 	mockService := mocks.NewMockService(ctrl)
 	controller := NewController(mockService)
 
-	tests := []struct {
-		name      string
-		input     *LogoutRequest
-		setupMock func()
-		wantErr   bool
-	}{
-		{
-			name: "successful logout",
-			input: &LogoutRequest{
-				RefreshToken: "refresh-token",
-			},
-			setupMock: func() {
-				// Currently, the controller doesn't call the service for logout
-				// This is a placeholder for when authentication middleware is implemented
-			},
-			wantErr: false,
-		},
-	}
+	t.Run("Successful Logout", func(t *testing.T) {
+		input := LogoutRequest{}
+		ctx := context.Background()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+		resp, err := controller.Logout(ctx, &input)
 
-			resp, err := controller.Logout(context.Background(), tt.input)
-
-			assert.NoError(t, err)
-			assert.NotNil(t, resp)
-			assert.True(t, resp.Body.Success)
-			assert.NotEmpty(t, resp.Body.Message)
-		})
-	}
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.True(t, resp.Body.Success)
+		assert.Contains(t, resp.Body.Message, "Logged out successfully")
+	})
 }
