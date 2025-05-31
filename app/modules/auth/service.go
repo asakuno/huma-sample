@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/asakuno/huma-sample/app/config"
 	"github.com/asakuno/huma-sample/app/modules/users"
 	"github.com/asakuno/huma-sample/app/shared/errors"
 	"github.com/asakuno/huma-sample/app/shared/utils"
@@ -23,24 +22,46 @@ type Service interface {
 	GetUserFromToken(ctx context.Context, accessToken string) (*AuthUser, error)
 }
 
-// AuthService implements the Service interface
-type AuthService struct {
-	repo   Repository
-	config *config.Config
+// PasswordRules defines password validation rules
+type PasswordRules struct {
+	MinLength        int
+	MaxLength        int
+	RequireUppercase bool
+	RequireLowercase bool
+	RequireNumbers   bool
+	RequireSymbols   bool
 }
 
-// NewAuthService creates a new auth service
-func NewAuthService(repo Repository, config *config.Config) Service {
+// DefaultPasswordRules returns the default password rules
+func DefaultPasswordRules() PasswordRules {
+	return PasswordRules{
+		MinLength:        8,
+		MaxLength:        128,
+		RequireUppercase: true,
+		RequireLowercase: true,
+		RequireNumbers:   true,
+		RequireSymbols:   true,
+	}
+}
+
+// AuthService implements the Service interface
+type AuthService struct {
+	repo          Repository
+	passwordRules PasswordRules
+}
+
+// NewAuthService creates a new auth service with proper dependency injection
+func NewAuthService(repo Repository, passwordRules PasswordRules) Service {
 	return &AuthService{
-		repo:   repo,
-		config: config,
+		repo:          repo,
+		passwordRules: passwordRules,
 	}
 }
 
 // SignUp registers a new user
 func (s *AuthService) SignUp(ctx context.Context, email, username, password, name string) (*string, error) {
 	// Validate password strength
-	if validationErrors := utils.ValidatePassword(password); len(validationErrors) > 0 {
+	if validationErrors := s.validatePassword(password); len(validationErrors) > 0 {
 		return nil, errors.NewPasswordTooWeakError()
 	}
 
@@ -53,8 +74,7 @@ func (s *AuthService) SignUp(ctx context.Context, email, username, password, nam
 	// Sign up with Cognito
 	cognitoUserID, err := s.repo.SignUp(ctx, email, username, password)
 	if err != nil {
-		// Wrap Cognito errors appropriately
-		return nil, errors.WrapError(err, 400, "Failed to register user")
+		return nil, errors.WrapError(err, 400, "Failed to register user with authentication service")
 	}
 
 	// Create user in database
@@ -88,7 +108,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, confirmationCode s
 
 	// Confirm with Cognito
 	if err := s.repo.ConfirmSignUp(ctx, user.Name, confirmationCode); err != nil {
-		return errors.WrapError(err, 400, "Failed to verify email")
+		return errors.WrapError(err, 400, "Failed to verify email with authentication service")
 	}
 
 	// Activate user in database
@@ -121,8 +141,8 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*AuthU
 
 	// Update last login
 	if err := s.repo.UpdateLastLogin(user.ID); err != nil {
-		// Non-critical error, log but don't fail the login
-		// In production, you'd want to log this error
+		// Non-critical error, continue without failing the login
+		// In production, this should be logged
 	}
 
 	// Create auth user response
@@ -183,7 +203,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 // ResetPassword resets the user's password
 func (s *AuthService) ResetPassword(ctx context.Context, email, confirmationCode, newPassword string) error {
 	// Validate password strength
-	if validationErrors := utils.ValidatePassword(newPassword); len(validationErrors) > 0 {
+	if validationErrors := s.validatePassword(newPassword); len(validationErrors) > 0 {
 		return errors.NewPasswordTooWeakError()
 	}
 
@@ -215,7 +235,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, confirmationCode
 // ChangePassword changes the user's password (for authenticated users)
 func (s *AuthService) ChangePassword(ctx context.Context, userID uint, accessToken, currentPassword, newPassword string) error {
 	// Validate password strength
-	if validationErrors := utils.ValidatePassword(newPassword); len(validationErrors) > 0 {
+	if validationErrors := s.validatePassword(newPassword); len(validationErrors) > 0 {
 		return errors.NewPasswordTooWeakError()
 	}
 
@@ -254,7 +274,7 @@ func (s *AuthService) Logout(ctx context.Context, accessToken string) error {
 	err := s.repo.SignOut(ctx, accessToken)
 	if err != nil {
 		// Logout errors are typically not critical
-		// In production, you'd want to log this error
+		// In production, this should be logged
 		return err
 	}
 	return nil
@@ -297,4 +317,82 @@ func (s *AuthService) GetUserFromToken(ctx context.Context, accessToken string) 
 		UpdatedAt:     user.UpdatedAt,
 		LastLoginAt:   user.LastLoginAt,
 	}, nil
+}
+
+// validatePassword validates password against configured rules
+func (s *AuthService) validatePassword(password string) []string {
+	var errors []string
+	
+	if len(password) < s.passwordRules.MinLength {
+		errors = append(errors, "Password must be at least 8 characters long")
+	}
+	
+	if len(password) > s.passwordRules.MaxLength {
+		errors = append(errors, "Password must be no more than 128 characters long")
+	}
+	
+	if s.passwordRules.RequireUppercase {
+		hasUpper := false
+		for _, char := range password {
+			if 'A' <= char && char <= 'Z' {
+				hasUpper = true
+				break
+			}
+		}
+		if !hasUpper {
+			errors = append(errors, "Password must contain at least one uppercase letter")
+		}
+	}
+	
+	if s.passwordRules.RequireLowercase {
+		hasLower := false
+		for _, char := range password {
+			if 'a' <= char && char <= 'z' {
+				hasLower = true
+				break
+			}
+		}
+		if !hasLower {
+			errors = append(errors, "Password must contain at least one lowercase letter")
+		}
+	}
+	
+	if s.passwordRules.RequireNumbers {
+		hasDigit := false
+		for _, char := range password {
+			if '0' <= char && char <= '9' {
+				hasDigit = true
+				break
+			}
+		}
+		if !hasDigit {
+			errors = append(errors, "Password must contain at least one digit")
+		}
+	}
+	
+	if s.passwordRules.RequireSymbols {
+		hasSpecial := false
+		for _, char := range password {
+			if isSpecialChar(char) {
+				hasSpecial = true
+				break
+			}
+		}
+		if !hasSpecial {
+			errors = append(errors, "Password must contain at least one special character")
+		}
+	}
+	
+	return errors
+}
+
+// isSpecialChar checks if a character is a special character
+func isSpecialChar(char rune) bool {
+	specialChars := "!@#$%^&*()_+-=[]{}|;':\",./<>?"
+	for _, sc := range specialChars {
+		if char == sc {
+			return true
+		}
+	}
+	return false
 }
