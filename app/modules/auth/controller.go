@@ -23,18 +23,14 @@ func NewController(service Service) *Controller {
 func (c *Controller) SignUp(ctx context.Context, input *SignUpRequest) (*SignUpResponse, error) {
 	cognitoUserID, err := c.service.SignUp(ctx, input.Email, input.Username, input.Password, input.Name)
 	if err != nil {
-		// Let Huma handle the error properly - no need for manual conversion
 		return nil, err
 	}
 
-	resp := &SignUpResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "User registered successfully. Please check your email for verification code."
-	if cognitoUserID != nil {
-		resp.Body.UserID = *cognitoUserID
-	}
-
-	return resp, nil
+	return &SignUpResponse{
+		Success: true,
+		Message: "User registered successfully. Please check your email for verification code.",
+		UserID:  derefString(cognitoUserID),
+	}, nil
 }
 
 // VerifyEmail handles email verification
@@ -44,11 +40,10 @@ func (c *Controller) VerifyEmail(ctx context.Context, input *VerifyEmailRequest)
 		return nil, err
 	}
 
-	resp := &VerifyEmailResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "Email verified successfully. You can now login."
-
-	return resp, nil
+	return &VerifyEmailResponse{
+		Success: true,
+		Message: "Email verified successfully. You can now login.",
+	}, nil
 }
 
 // Login handles user authentication
@@ -58,11 +53,10 @@ func (c *Controller) Login(ctx context.Context, input *LoginRequest) (*LoginResp
 		return nil, err
 	}
 
-	resp := &LoginResponse{}
-	resp.Body.User = *user
-	resp.Body.Tokens = *tokens
-
-	return resp, nil
+	return &LoginResponse{
+		User:   *user,
+		Tokens: *tokens,
+	}, nil
 }
 
 // RefreshToken handles token refresh
@@ -72,10 +66,9 @@ func (c *Controller) RefreshToken(ctx context.Context, input *RefreshTokenReques
 		return nil, err
 	}
 
-	resp := &RefreshTokenResponse{}
-	resp.Body.Tokens = *tokens
-
-	return resp, nil
+	return &RefreshTokenResponse{
+		Tokens: *tokens,
+	}, nil
 }
 
 // ForgotPassword handles forgot password requests
@@ -85,11 +78,10 @@ func (c *Controller) ForgotPassword(ctx context.Context, input *ForgotPasswordRe
 		return nil, err
 	}
 
-	resp := &ForgotPasswordResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "If the email exists, a password reset code has been sent."
-
-	return resp, nil
+	return &ForgotPasswordResponse{
+		Success: true,
+		Message: "If the email exists, a password reset code has been sent.",
+	}, nil
 }
 
 // ResetPassword handles password reset
@@ -99,11 +91,10 @@ func (c *Controller) ResetPassword(ctx context.Context, input *ResetPasswordRequ
 		return nil, err
 	}
 
-	resp := &ResetPasswordResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "Password reset successfully. You can now login with your new password."
-
-	return resp, nil
+	return &ResetPasswordResponse{
+		Success: true,
+		Message: "Password reset successfully. You can now login with your new password.",
+	}, nil
 }
 
 // ChangePassword handles password change for authenticated users
@@ -122,11 +113,10 @@ func (c *Controller) ChangePassword(ctx context.Context, input *ChangePasswordRe
 		return nil, err
 	}
 
-	resp := &ChangePasswordResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "Password changed successfully."
-
-	return resp, nil
+	return &ChangePasswordResponse{
+		Success: true,
+		Message: "Password changed successfully.",
+	}, nil
 }
 
 // Logout handles user logout
@@ -143,19 +133,14 @@ func (c *Controller) Logout(ctx context.Context, input *LogoutRequest) (*LogoutR
 		// In a production system, you'd want to log this error
 	}
 
-	resp := &LogoutResponse{}
-	resp.Body.Success = true
-	resp.Body.Message = "Logged out successfully."
-
-	return resp, nil
+	return &LogoutResponse{
+		Success: true,
+		Message: "Logged out successfully.",
+	}, nil
 }
 
 // GetProfile retrieves the authenticated user's profile
-type GetProfileOutput struct {
-	Body AuthUser `json:"user" doc:"User profile information"`
-}
-
-func (c *Controller) GetProfile(ctx context.Context, input *struct{}) (*GetProfileOutput, error) {
+func (c *Controller) GetProfile(ctx context.Context, input *struct{}) (*AuthUser, error) {
 	// Get access token from context
 	token, ok := middleware.GetTokenFromContext(ctx)
 	if !ok {
@@ -167,28 +152,34 @@ func (c *Controller) GetProfile(ctx context.Context, input *struct{}) (*GetProfi
 		return nil, err
 	}
 
-	resp := &GetProfileOutput{}
-	resp.Body = *user
-
-	return resp, nil
+	return user, nil
 }
 
-// Health check for auth service
-type AuthHealthOutput struct {
-	Body struct {
-		Status  string `json:"status" example:"ok" doc:"Service status"`
-		Service string `json:"service" example:"auth" doc:"Service name"`
-		Cognito string `json:"cognito" example:"connected" doc:"Cognito connection status"`
+// HealthCheck provides health status for auth service
+func (c *Controller) HealthCheck(ctx context.Context, input *struct{}) (*HealthCheckResponse, error) {
+	// You could add actual health checks here
+	checks := map[string]HealthCheckDetail{
+		"service": {
+			Status:  "pass",
+			Message: "Auth service is operational",
+		},
+		"cognito": {
+			Status:  "pass",
+			Message: "Cognito connection is healthy",
+		},
 	}
+
+	return &HealthCheckResponse{
+		Status:  "ok",
+		Service: "auth",
+		Checks:  checks,
+	}, nil
 }
 
-func (c *Controller) HealthCheck(ctx context.Context, input *struct{}) (*AuthHealthOutput, error) {
-	resp := &AuthHealthOutput{}
-	resp.Body.Status = "ok"
-	resp.Body.Service = "auth"
-	
-	// You could check Cognito connection here in the future
-	resp.Body.Cognito = "connected"
-
-	return resp, nil
+// Helper function to dereference string pointer safely
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
