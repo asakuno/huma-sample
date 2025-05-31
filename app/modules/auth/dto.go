@@ -96,6 +96,11 @@ type LogoutResponse struct {
 	Message string `json:"message" doc:"Response message" example:"Logged out successfully."`
 }
 
+// GetProfileResponse represents the user profile response
+type GetProfileResponse struct {
+	User AuthUser `json:"user" doc:"User profile information"`
+}
+
 // PaginationQuery represents common pagination parameters
 type PaginationQuery struct {
 	Page     int `query:"page" minimum:"1" default:"1" doc:"Page number" example:"1"`
