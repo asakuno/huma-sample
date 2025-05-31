@@ -9,7 +9,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// contextKey is a custom type for context keys
+// contextKey is a custom type for context keys to avoid collisions
 type contextKey string
 
 const (
@@ -53,7 +53,7 @@ func DefaultAuthConfig(jwtSecret string) AuthConfig {
 
 // JWT returns a Huma middleware that validates JWT tokens
 func JWT(config AuthConfig) func(ctx huma.Context, next func(huma.Context)) {
-	// Set defaults
+	// Set defaults if not provided
 	if config.TokenLookup == "" {
 		config.TokenLookup = "header:Authorization"
 	}
@@ -61,8 +61,11 @@ func JWT(config AuthConfig) func(ctx huma.Context, next func(huma.Context)) {
 		config.AuthScheme = "Bearer"
 	}
 
-	// Parse token lookup
+	// Parse token lookup configuration
 	parts := strings.Split(config.TokenLookup, ":")
+	if len(parts) != 2 {
+		panic("Invalid token lookup format. Expected 'source:name'")
+	}
 	lookupSource := parts[0]
 	lookupName := parts[1]
 
@@ -77,46 +80,25 @@ func JWT(config AuthConfig) func(ctx huma.Context, next func(huma.Context)) {
 		}
 
 		var token string
+		var err error
 
-		// Extract token from request
+		// Extract token from request based on configuration
 		switch lookupSource {
 		case "header":
-			auth := ctx.Header(lookupName)
-			if auth == "" {
-				handleAuthError(ctx, errors.NewUnauthorizedError("Missing authorization header"))
-				return
-			}
-
-			// Check auth scheme
-			if config.AuthScheme != "" {
-				prefix := config.AuthScheme + " "
-				if !strings.HasPrefix(auth, prefix) {
-					handleAuthError(ctx, errors.NewUnauthorizedError("Invalid authorization header format"))
-					return
-				}
-				token = auth[len(prefix):]
-			} else {
-				token = auth
-			}
-
+			token, err = extractTokenFromHeader(ctx, lookupName, config.AuthScheme)
 		case "query":
 			token = ctx.Query(lookupName)
 			if token == "" {
-				handleAuthError(ctx, errors.NewUnauthorizedError("Missing token in query"))
-				return
+				err = errors.NewUnauthorizedError("Missing token in query parameter")
 			}
-
 		case "cookie":
-			// Huma doesn't have direct cookie support, need to parse from header
-			cookieHeader := ctx.Header("Cookie")
-			token = extractCookie(cookieHeader, lookupName)
-			if token == "" {
-				handleAuthError(ctx, errors.NewUnauthorizedError("Missing token in cookie"))
-				return
-			}
-
+			token, err = extractTokenFromCookie(ctx, lookupName)
 		default:
-			handleAuthError(ctx, errors.NewInternalServerError("Invalid token lookup configuration"))
+			err = errors.NewInternalServerError("Invalid token lookup source")
+		}
+
+		if err != nil {
+			handleAuthError(ctx, err)
 			return
 		}
 
@@ -166,7 +148,7 @@ func OptionalAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Contex
 				newCtx = context.WithValue(newCtx, TokenContextKey, token)
 				ctx = huma.WithContext(ctx, newCtx)
 			}
-			// If invalid, just continue without user info
+			// If invalid, just continue without user info (no error)
 		}
 
 		next(ctx)
@@ -195,11 +177,14 @@ func RequireRole(roles ...string) func(ctx huma.Context, next func(huma.Context)
 		}
 
 		// Check if user has required role
-		// Note: This assumes role is stored in JWT claims
-		// You might need to fetch user details from database
+		// This is a simplified implementation - in production you'd want to:
+		// 1. Fetch user details from database to get current roles
+		// 2. Implement a proper role hierarchy system
+		// 3. Cache role information for performance
+		
 		hasRole := false
 		for _, requiredRole := range roles {
-			// This is a simplified check - adapt based on your role structure
+			// Example role check - adapt based on your role structure
 			if claims.Email == "admin@example.com" && requiredRole == "admin" {
 				hasRole = true
 				break
@@ -219,7 +204,55 @@ func RequireRole(roles ...string) func(ctx huma.Context, next func(huma.Context)
 	}
 }
 
-// Helper function to extract cookie value
+// RateLimit returns a simple rate limiting middleware
+func RateLimit(requestsPerMinute int) func(ctx huma.Context, next func(huma.Context)) {
+	// This is a simplified rate limiter - in production use a proper implementation
+	// like go-redis/redis_rate or github.com/ulule/limiter
+	return func(ctx huma.Context, next func(huma.Context)) {
+		// TODO: Implement proper rate limiting
+		// For now, just pass through
+		next(ctx)
+	}
+}
+
+// Helper functions
+
+// extractTokenFromHeader extracts JWT token from Authorization header
+func extractTokenFromHeader(ctx huma.Context, headerName, authScheme string) (string, error) {
+	auth := ctx.Header(headerName)
+	if auth == "" {
+		return "", errors.NewUnauthorizedError("Missing authorization header")
+	}
+
+	// Check auth scheme
+	if authScheme != "" {
+		prefix := authScheme + " "
+		if !strings.HasPrefix(auth, prefix) {
+			return "", errors.NewUnauthorizedError("Invalid authorization header format")
+		}
+		return auth[len(prefix):], nil
+	}
+
+	return auth, nil
+}
+
+// extractTokenFromCookie extracts token from cookie
+func extractTokenFromCookie(ctx huma.Context, cookieName string) (string, error) {
+	// Huma doesn't have direct cookie support, so we parse from header
+	cookieHeader := ctx.Header("Cookie")
+	if cookieHeader == "" {
+		return "", errors.NewUnauthorizedError("Missing cookie header")
+	}
+
+	token := extractCookie(cookieHeader, cookieName)
+	if token == "" {
+		return "", errors.NewUnauthorizedError("Token not found in cookie")
+	}
+
+	return token, nil
+}
+
+// extractCookie helper function to extract cookie value by name
 func extractCookie(cookieHeader, name string) string {
 	if cookieHeader == "" {
 		return ""
@@ -236,17 +269,14 @@ func extractCookie(cookieHeader, name string) string {
 	return ""
 }
 
-// handleAuthError writes an authentication error response
-func handleAuthError(ctx huma.Context, err *errors.AppError) {
-	// Convert to Huma error
-	humaErr := err.ToHumaError()
-	
-	// Write error response
-	ctx.SetStatus(err.GetStatus())
-	ctx.SetHeader("Content-Type", "application/problem+json")
-	
-	// Manually write the error as JSON
-	// In a real implementation, you'd use huma.WriteErr
-	errorJSON := `{"status":` + string(err.GetStatus()) + `,"title":"` + err.Code + `","detail":"` + err.Message + `"}`
-	ctx.BodyWriter().Write([]byte(errorJSON))
+// handleAuthError writes an authentication error response using Huma's error handling
+func handleAuthError(ctx huma.Context, err error) {
+	// Use Huma's built-in error writing capability
+	// This properly handles content negotiation and error formatting
+	api := ctx.Operation().API
+	if statusErr, ok := err.(huma.StatusError); ok {
+		huma.WriteErr(api, ctx, statusErr.GetStatus(), statusErr.Error())
+	} else {
+		huma.WriteErr(api, ctx, 500, err.Error())
+	}
 }
