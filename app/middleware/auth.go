@@ -269,18 +269,13 @@ func extractCookie(cookieHeader, name string) string {
 	return ""
 }
 
-// handleAuthError writes an authentication error response using Huma's error handling
+// handleAuthError writes an authentication error response
 func handleAuthError(ctx huma.Context, err error) {
-	// Use Huma v2's simplified error handling
-	// In Huma v2, we can directly panic with the error and let Huma handle it
-	// Or we can write the error response directly to the context
+	// For Huma v2, we should use panic to let Huma handle the error properly
+	// This is the recommended way to handle errors in Huma middleware
 	if statusErr, ok := err.(huma.StatusError); ok {
-		ctx.SetStatus(statusErr.GetStatus())
-		ctx.Header().Set("Content-Type", "application/json")
-		ctx.BodyWriter().Write([]byte(`{"error": "` + statusErr.Error() + `"}`))
+		panic(statusErr)
 	} else {
-		ctx.SetStatus(500)
-		ctx.Header().Set("Content-Type", "application/json")
-		ctx.BodyWriter().Write([]byte(`{"error": "` + err.Error() + `"}`))
+		panic(huma.Error500InternalServerError(err.Error()))
 	}
 }
