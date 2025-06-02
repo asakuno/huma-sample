@@ -129,7 +129,7 @@ func RequireAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Context
 // OptionalAuth returns an auth middleware that doesn't fail if token is missing
 func OptionalAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Context)) {
 	config := DefaultAuthConfig(jwtSecret)
-	
+
 	return func(ctx huma.Context, next func(huma.Context)) {
 		var token string
 
@@ -181,7 +181,7 @@ func RequireRole(roles ...string) func(ctx huma.Context, next func(huma.Context)
 		// 1. Fetch user details from database to get current roles
 		// 2. Implement a proper role hierarchy system
 		// 3. Cache role information for performance
-		
+
 		hasRole := false
 		for _, requiredRole := range roles {
 			// Example role check - adapt based on your role structure
@@ -271,12 +271,16 @@ func extractCookie(cookieHeader, name string) string {
 
 // handleAuthError writes an authentication error response using Huma's error handling
 func handleAuthError(ctx huma.Context, err error) {
-	// Use Huma's built-in error writing capability
-	// This properly handles content negotiation and error formatting
-	api := ctx.Operation().API
+	// Use Huma v2's simplified error handling
+	// In Huma v2, we can directly panic with the error and let Huma handle it
+	// Or we can write the error response directly to the context
 	if statusErr, ok := err.(huma.StatusError); ok {
-		huma.WriteErr(api, ctx, statusErr.GetStatus(), statusErr.Error())
+		ctx.SetStatus(statusErr.GetStatus())
+		ctx.Header().Set("Content-Type", "application/json")
+		ctx.BodyWriter().Write([]byte(`{"error": "` + statusErr.Error() + `"}`))
 	} else {
-		huma.WriteErr(api, ctx, 500, err.Error())
+		ctx.SetStatus(500)
+		ctx.Header().Set("Content-Type", "application/json")
+		ctx.BodyWriter().Write([]byte(`{"error": "` + err.Error() + `"}`))
 	}
 }
