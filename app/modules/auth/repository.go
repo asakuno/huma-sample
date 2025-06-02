@@ -27,8 +27,8 @@ type Repository interface {
 	ChangePassword(ctx context.Context, accessToken, currentPassword, newPassword string) error
 	SignOut(ctx context.Context, accessToken string) error
 	DeleteUser(ctx context.Context, accessToken string) error
-	GetUser(ctx context.Context, accessToken string) (*types.GetUserOutput, error)
-	
+	GetUser(ctx context.Context, accessToken string) (*cognitoidentityprovider.GetUserOutput, error)
+
 	// Database operations
 	GetUserByEmail(email string) (*users.User, error)
 	GetUserByUsername(username string) (*users.User, error)
@@ -40,10 +40,10 @@ type Repository interface {
 
 // AuthRepository implements the Repository interface
 type AuthRepository struct {
-	db             *gorm.DB
-	cognitoClient  *cognitoidentityprovider.Client
-	userPoolID     string
-	appClientID    string
+	db              *gorm.DB
+	cognitoClient   *cognitoidentityprovider.Client
+	userPoolID      string
+	appClientID     string
 	appClientSecret string
 }
 
@@ -227,7 +227,7 @@ func (r *AuthRepository) DeleteUser(ctx context.Context, accessToken string) err
 }
 
 // GetUser gets user information from Cognito
-func (r *AuthRepository) GetUser(ctx context.Context, accessToken string) (*types.GetUserOutput, error) {
+func (r *AuthRepository) GetUser(ctx context.Context, accessToken string) (*cognitoidentityprovider.GetUserOutput, error) {
 	input := &cognitoidentityprovider.GetUserInput{
 		AccessToken: aws.String(accessToken),
 	}
