@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"time"
 
 	"github.com/asakuno/huma-sample/app/modules/users"
 	"github.com/asakuno/huma-sample/app/shared/errors"
