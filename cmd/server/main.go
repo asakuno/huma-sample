@@ -90,7 +90,7 @@ func main() {
 
 	// Create router with middleware
 	router := chi.NewMux()
-	
+
 	// Add Chi middleware
 	router.Use(chMiddleware.Logger)
 	router.Use(chMiddleware.Recoverer)
@@ -110,7 +110,7 @@ func main() {
 		Name: "MIT",
 		URL:  "https://opensource.org/licenses/MIT",
 	}
-	
+
 	// Add servers information
 	apiConfig.Servers = []*huma.Server{
 		{
@@ -166,20 +166,20 @@ func main() {
 func registerRoutes(api huma.API, db *gorm.DB) {
 	// Create API v1 group for versioning
 	v1Group := huma.NewGroup(api, "/v1")
-	
+
 	// Add global middleware to v1 group
 	v1Group.UseMiddleware(middleware.SimpleCORS())
-	
+
 	// Public endpoints (no auth required)
 	publicGroup := huma.NewGroup(api)
-	
+
 	// Health check endpoint
 	huma.Get(publicGroup, "/health", func(ctx context.Context, input *struct{}) (*HealthOutput, error) {
 		resp := &HealthOutput{}
 		resp.Body.Status = "ok"
 		resp.Body.Time = time.Now().Format(time.RFC3339)
 		resp.Body.Version = "1.0.0"
-		
+
 		// Check database connection
 		if sqlDB, err := db.DB(); err != nil {
 			resp.Body.Database = "error"
@@ -188,27 +188,16 @@ func registerRoutes(api huma.API, db *gorm.DB) {
 		} else {
 			resp.Body.Database = "connected"
 		}
-		
+
 		return resp, nil
-	}, 
-		huma.Summary("API Health Check"),
-		huma.Description("Check if the API and its dependencies are healthy"),
-		huma.Tags("Health"),
-		huma.Response(200, "API is healthy"),
-	)
+	})
 
 	// Greeting endpoint (example public endpoint)
 	huma.Get(publicGroup, "/greeting/{name}", func(ctx context.Context, input *GreetingInput) (*GreetingOutput, error) {
 		resp := &GreetingOutput{}
 		resp.Body.Message = fmt.Sprintf("Hello, %s!", input.Name)
 		return resp, nil
-	}, 
-		huma.Summary("Get greeting"),
-		huma.Description("Get a personalized greeting message"),
-		huma.Tags("Examples"),
-		huma.Response(200, "Greeting message"),
-		huma.Response(400, "Invalid name parameter"),
-	)
+	})
 
 	// Register auth routes with Group functionality
 	if err := auth.RegisterRoutes(api, db); err != nil {
@@ -222,17 +211,17 @@ func registerRoutes(api huma.API, db *gorm.DB) {
 
 	// Example of versioned API group
 	// v1Group could be used for versioned endpoints
-	// huma.Get(v1Group, "/users", userController.ListUsers, ...)
-	// huma.Get(v1Group, "/users/{user-id}", userController.GetUser, ...)
+	// huma.Get(v1Group, "/users", userController.ListUsers)
+	// huma.Get(v1Group, "/users/{user-id}", userController.GetUser)
 
 	// Example of protected endpoints group
 	cfg := config.GetConfig()
 	protectedGroup := huma.NewGroup(api, "/api")
 	protectedGroup.UseMiddleware(middleware.RequireAuth(cfg.JWT.Secret))
-	
+
 	// Example protected endpoint
-	// huma.Get(protectedGroup, "/me", userController.GetCurrentUser, ...)
-	
+	// huma.Get(protectedGroup, "/me", userController.GetCurrentUser)
+
 	// Add API documentation customization
 	addAPIDocumentation(api)
 }
@@ -241,15 +230,15 @@ func registerRoutes(api huma.API, db *gorm.DB) {
 func addAPIDocumentation(api huma.API) {
 	// Add security schemes to OpenAPI
 	openapi := api.OpenAPI()
-	
+
 	if openapi.Components == nil {
 		openapi.Components = &huma.Components{}
 	}
-	
+
 	if openapi.Components.SecuritySchemes == nil {
 		openapi.Components.SecuritySchemes = make(map[string]*huma.SecurityScheme)
 	}
-	
+
 	// Add Bearer token security scheme
 	openapi.Components.SecuritySchemes["BearerAuth"] = &huma.SecurityScheme{
 		Type:         "http",
@@ -257,12 +246,12 @@ func addAPIDocumentation(api huma.API) {
 		BearerFormat: "JWT",
 		Description:  "JWT Bearer token authentication",
 	}
-	
+
 	// Add custom extensions for CLI auto-configuration
 	if openapi.Extensions == nil {
 		openapi.Extensions = make(map[string]any)
 	}
-	
+
 	openapi.Extensions["x-cli-config"] = map[string]any{
 		"security": "BearerAuth",
 		"headers": map[string]string{
