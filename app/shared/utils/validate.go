@@ -31,14 +31,14 @@ func (v *CustomValidator) ValidateStruct(data interface{}) []error {
 
 	// Generate schema from type
 	schema := huma.SchemaFromType(v.registry, t)
-	
+
 	// Create path buffer and result
 	pb := huma.NewPathBuffer([]byte{}, 0)
 	res := &huma.ValidateResult{}
-	
+
 	// Validate the data
 	huma.Validate(v.registry, schema, pb, huma.ModeWriteToServer, data, res)
-	
+
 	return res.Errors
 }
 
@@ -56,16 +56,16 @@ func ValidateEmail(email string) error {
 // ValidatePassword validates password strength with detailed feedback
 func ValidatePassword(password string) []string {
 	var errors []string
-	
+
 	if len(password) < 8 {
 		errors = append(errors, "Password must be at least 8 characters long")
 	}
-	
+
 	hasUpper := false
 	hasLower := false
 	hasDigit := false
 	hasSpecial := false
-	
+
 	for _, char := range password {
 		switch {
 		case 'A' <= char && char <= 'Z':
@@ -78,7 +78,7 @@ func ValidatePassword(password string) []string {
 			hasSpecial = true
 		}
 	}
-	
+
 	if !hasUpper {
 		errors = append(errors, "Password must contain at least one uppercase letter")
 	}
@@ -91,7 +91,7 @@ func ValidatePassword(password string) []string {
 	if !hasSpecial {
 		errors = append(errors, "Password must contain at least one special character")
 	}
-	
+
 	return errors
 }
 
@@ -114,7 +114,7 @@ func ValidatePhone(phone string) error {
 	// Remove spaces and dashes
 	phone = strings.ReplaceAll(phone, " ", "")
 	phone = strings.ReplaceAll(phone, "-", "")
-	
+
 	if !phoneRegex.MatchString(phone) {
 		return fmt.Errorf("invalid phone number format")
 	}
@@ -127,11 +127,11 @@ func ValidateURL(url string) error {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return fmt.Errorf("URL must start with http:// or https://")
 	}
-	
+
 	if len(url) < 10 { // Minimum viable URL length
 		return fmt.Errorf("invalid URL format")
 	}
-	
+
 	return nil
 }
 
@@ -181,23 +181,14 @@ func ValidateIPAddress(ip string) error {
 		}
 		return nil
 	}
-	
+
 	// Simple IPv6 validation
 	ipv6Regex := regexp.MustCompile(`^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|::)$`)
 	if !ipv6Regex.MatchString(ip) {
 		return fmt.Errorf("invalid IP address format")
 	}
-	
+
 	return nil
 }
 
-// Helper function to check special characters
-func isSpecialChar(char rune) bool {
-	specialChars := "!@#$%^&*()_+-=[]{}|;':\",./<>?"
-	for _, sc := range specialChars {
-		if char == sc {
-			return true
-		}
-	}
-	return false
-}
+// Note: isSpecialChar function is defined in password.go to avoid duplication
