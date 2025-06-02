@@ -15,22 +15,22 @@ PROJECT_NAME=huma-sample
 .PHONY: build up down logs ps clean
 
 build:
-	docker-compose build
+	docker compose build
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 ps:
-	docker-compose ps
+	docker compose ps
 
 clean:
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 # Development commands
@@ -43,7 +43,7 @@ dev: up
 	@echo "API docs: http://localhost:8888/docs"
 
 dev-logs:
-	docker-compose logs -f app
+	docker compose logs -f app
 
 # Database commands
 .PHONY: db-shell db-create migrate seed migrate-seed rollback
