@@ -277,8 +277,8 @@ func (r *AuthRepository) GetUser(ctx context.Context, accessToken string) (*cogn
 
 // GetUserByEmail retrieves a user by email
 func (r *AuthRepository) GetUserByEmail(email string) (*users.User, error) {
-	var user users.User
-	err := r.db.Where("email = ?", email).First(&user).Error
+	ctx := context.Background()
+	user, err := gorm.G[users.User](r.db).Where("email = ?", email).First(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -287,8 +287,8 @@ func (r *AuthRepository) GetUserByEmail(email string) (*users.User, error) {
 
 // GetUserByUsername retrieves a user by username
 func (r *AuthRepository) GetUserByUsername(username string) (*users.User, error) {
-	var user users.User
-	err := r.db.Where("name = ?", username).First(&user).Error
+	ctx := context.Background()
+	user, err := gorm.G[users.User](r.db).Where("name = ?", username).First(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -297,8 +297,8 @@ func (r *AuthRepository) GetUserByUsername(username string) (*users.User, error)
 
 // GetUserByID retrieves a user by ID
 func (r *AuthRepository) GetUserByID(id uint) (*users.User, error) {
-	var user users.User
-	err := r.db.First(&user, id).Error
+	ctx := context.Background()
+	user, err := gorm.G[users.User](r.db).Where("id = ?", id).First(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -307,18 +307,23 @@ func (r *AuthRepository) GetUserByID(id uint) (*users.User, error) {
 
 // CreateUser creates a new user in the database
 func (r *AuthRepository) CreateUser(user *users.User) error {
-	return r.db.Create(user).Error
+	ctx := context.Background()
+	return gorm.G[users.User](r.db).Create(ctx, user)
 }
 
 // UpdateUser updates a user in the database
 func (r *AuthRepository) UpdateUser(user *users.User) error {
-	return r.db.Save(user).Error
+	ctx := context.Background()
+	_, err := gorm.G[users.User](r.db).Where("id = ?", user.ID).Updates(ctx, *user)
+	return err
 }
 
 // UpdateLastLogin updates the last login timestamp
 func (r *AuthRepository) UpdateLastLogin(userID uint) error {
+	ctx := context.Background()
 	now := time.Now()
-	return r.db.Model(&users.User{}).Where("id = ?", userID).Update("last_login_at", &now).Error
+	_, err := gorm.G[users.User](r.db).Where("id = ?", userID).Update(ctx, "last_login_at", &now)
+	return err
 }
 
 // Helper function to calculate secret hash for Cognito

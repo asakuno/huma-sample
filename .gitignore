@@ -65,3 +65,5 @@ temp/
 # Dependencies
 vendor/
 node_modules/
+
+text/
