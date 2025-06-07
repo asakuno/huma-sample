@@ -71,3 +71,15 @@ func (p *PasswordResetRequest) IsUsed() bool {
 func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
+
+// CognitoUser represents a user from AWS Cognito
+type CognitoUser struct {
+	Username       string          `json:"username"`
+	UserAttributes []*AttributeType `json:"user_attributes"`
+}
+
+// AttributeType represents an attribute in Cognito
+type AttributeType struct {
+	Name  *string `json:"name"`
+	Value *string `json:"value"`
+}

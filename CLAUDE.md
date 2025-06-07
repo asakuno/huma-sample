@@ -18,8 +18,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `make rollback` - Rollback database migrations
 - `make db-shell` - Connect to MySQL shell
 
-### Application Management
-- `make test` - Run tests (via `go test ./...`)
+### Testing & Application Management
+- `make test` - Run all tests via Docker (`go test ./...`)
+- `go test -v ./app/modules/auth/tests` - Run auth module tests specifically
+- `cd app/modules/auth/tests && go test -v` - Run tests from auth test directory
+- `go test -v -run TestAuthService_SignUp ./app/modules/auth/tests` - Run single test
+- `go test -v -bench=. -benchmem ./app/modules/auth/tests` - Run benchmark tests
 - `make build-app` - Build application binary
 - `make go-tidy` - Run `go mod tidy`
 - `make up/down` - Start/stop containers
@@ -42,7 +46,14 @@ app/modules/{domain}/
 ├── repository.go    # Data access (database + external services)
 ├── model.go         # Database entities and domain models
 ├── dto.go           # API request/response structures
-└── routes.go        # Route registration and middleware setup
+├── routes.go        # Route registration and middleware setup
+└── tests/           # Comprehensive test suite
+    ├── test_utils.go      # Mock implementations and test utilities
+    ├── service_test.go    # Service layer unit tests
+    ├── controller_test.go # Controller layer unit tests
+    ├── integration_test.go # End-to-end API tests
+    ├── benchmark_test.go  # Performance tests
+    └── README.md          # Test execution instructions
 ```
 
 ### Key Architecture Patterns
@@ -50,12 +61,15 @@ app/modules/{domain}/
 2. **Group-based Routing**: Public vs protected route groups with middleware
 3. **Unified Error Handling**: RFC 7807 compliant errors via Huma's built-in types
 4. **Configuration Management**: Environment-based config in `app/config/`
+5. **Comprehensive Testing**: Unit, integration, and benchmark tests with mock implementations
 
 ### Authentication Architecture
-- **Development**: Cognito Local simulator at `http://localhost:9229`
+- **Development**: Cognito Local simulator at `http://localhost:9229` (automatically configured)
 - **Production**: Real AWS Cognito with configurable User Pool
-- **JWT Middleware**: Token validation via `middleware.RequireAuth()`
+- **JWT Middleware**: Cognito token parsing and validation via `middleware.RequireAuth()`
 - **Multi-layer Auth**: Registration, verification, login, password management
+- **Email-based Authentication**: Dynamic user identification using email from Cognito JWT tokens
+- **Local Setup**: Automatic user pool and client creation via initialization scripts
 
 ### API Documentation
 - **Swagger UI**: http://localhost:8888/docs (auto-generated)
@@ -81,6 +95,13 @@ app/modules/{domain}/
 - **Environment Variables**: `.env` file for local development
 - **Container Access**: Use `make shell` to access the app container
 
+### Testing Architecture
+- **Mock Repository Pattern**: Complete mock implementations of repository interfaces
+- **SQLite In-Memory**: Fast, isolated test database using SQLite
+- **Test Categories**: Unit tests (service/controller), integration tests (full API), benchmarks
+- **Test Utilities**: Comprehensive helper functions for test setup and cleanup
+- **Coverage Goals**: 90%+ unit test coverage, 100% critical business flow coverage
+
 ### Important Notes
 - Always run migrations after code changes: `make migrate`
 - Use `make dev-logs` to monitor application output during development
@@ -88,3 +109,17 @@ app/modules/{domain}/
 - The project uses Go 1.24.1 with module path `github.com/asakuno/huma-sample`
 - All API validation is handled automatically by Huma framework
 - Error responses follow RFC 7807 standard via Huma's built-in error types
+- Run tests from proper directory: `cd app/modules/auth/tests` for auth module tests
+
+### Cognito Local Development Setup
+- User Pool ID: `local_4TQOZ5Ss` (auto-created)
+- Client ID: `auftpkafnyem0ag5ed84ivuvw` (auto-created)
+- Initialization script: `scripts/init-cognito-local.sh` (creates required resources)
+- Password policy relaxed for development (minimum 8 characters, no complexity requirements)
+- Users require email confirmation via `aws cognito-idp admin-confirm-sign-up` for testing
+
+### Authentication Flow
+- JWT tokens contain dynamic user information extracted from Cognito
+- Profile and password change APIs use email-based user identification
+- All authentication middleware supports both local Cognito and production AWS Cognito
+- Token parsing handles Cognito JWT format without signature validation in development

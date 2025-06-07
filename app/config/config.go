@@ -154,3 +154,12 @@ func IsProduction() bool {
 func IsDevelopment() bool {
 	return GetConfig().AppEnv == "development" || GetConfig().AppEnv == "localhost"
 }
+
+// MockError is a simple error implementation for testing
+type MockError struct {
+	Message string
+}
+
+func (e *MockError) Error() string {
+	return e.Message
+}

@@ -134,8 +134,6 @@ func RequireAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Context
 
 // OptionalAuth returns an auth middleware that doesn't fail if token is missing
 func OptionalAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Context)) {
-	config := DefaultAuthConfig(jwtSecret)
-
 	return func(ctx huma.Context, next func(huma.Context)) {
 		var token string
 
