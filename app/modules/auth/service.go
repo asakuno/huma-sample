@@ -36,10 +36,10 @@ func DefaultPasswordRules() PasswordRules {
 	return PasswordRules{
 		MinLength:        8,
 		MaxLength:        128,
-		RequireUppercase: true,
-		RequireLowercase: true,
-		RequireNumbers:   true,
-		RequireSymbols:   true,
+		RequireUppercase: false,
+		RequireLowercase: false,
+		RequireNumbers:   false,
+		RequireSymbols:   false,
 	}
 }
 
@@ -321,10 +321,6 @@ func (s *AuthService) GetUserFromToken(ctx context.Context, accessToken string) 
 // validatePassword validates password against configured rules
 func (s *AuthService) validatePassword(password string) []string {
 	var errors []string
-	
-	// Debug logging
-	println("DEBUG: validatePassword called with password:", password)
-	println("DEBUG: password length:", len(password))
 	
 	if len(password) < s.passwordRules.MinLength {
 		errors = append(errors, "Password must be at least 8 characters long")

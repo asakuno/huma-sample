@@ -91,8 +91,8 @@ func LoadConfig() *Config {
 
 	if useCognitoLocal {
 		// Override with local values if using local Cognito
-		userPoolID = getEnv("COGNITO_LOCAL_USER_POOL_ID", "local_test_pool")
-		appClientID = getEnv("COGNITO_LOCAL_APP_CLIENT_ID", "local_test_client")
+		userPoolID = getEnv("COGNITO_LOCAL_USER_POOL_ID", "local_4TQOZ5Ss")
+		appClientID = getEnv("COGNITO_LOCAL_APP_CLIENT_ID", "auftpkafnyem0ag5ed84ivuvw")
 		appClientSecret = "" // Local Cognito doesn't use client secret
 		log.Println("Using local Cognito configuration")
 	}

@@ -35,7 +35,7 @@ func (c *Controller) SignUp(ctx context.Context, input *SignUpRequest) (*SignUpR
 
 // VerifyEmail handles email verification
 func (c *Controller) VerifyEmail(ctx context.Context, input *VerifyEmailRequest) (*VerifyEmailResponse, error) {
-	err := c.service.VerifyEmail(ctx, input.Email, input.ConfirmationCode)
+	err := c.service.VerifyEmail(ctx, input.Body.Email, input.Body.ConfirmationCode)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *Controller) VerifyEmail(ctx context.Context, input *VerifyEmailRequest)
 
 // Login handles user authentication
 func (c *Controller) Login(ctx context.Context, input *LoginRequest) (*LoginResponse, error) {
-	user, tokens, err := c.service.Login(ctx, input.Email, input.Password)
+	user, tokens, err := c.service.Login(ctx, input.Body.Email, input.Body.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (c *Controller) Login(ctx context.Context, input *LoginRequest) (*LoginResp
 
 // RefreshToken handles token refresh
 func (c *Controller) RefreshToken(ctx context.Context, input *RefreshTokenRequest) (*RefreshTokenResponse, error) {
-	tokens, err := c.service.RefreshToken(ctx, input.RefreshToken)
+	tokens, err := c.service.RefreshToken(ctx, input.Body.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (c *Controller) RefreshToken(ctx context.Context, input *RefreshTokenReques
 
 // ForgotPassword handles forgot password requests
 func (c *Controller) ForgotPassword(ctx context.Context, input *ForgotPasswordRequest) (*ForgotPasswordResponse, error) {
-	err := c.service.ForgotPassword(ctx, input.Email)
+	err := c.service.ForgotPassword(ctx, input.Body.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (c *Controller) ForgotPassword(ctx context.Context, input *ForgotPasswordRe
 
 // ResetPassword handles password reset
 func (c *Controller) ResetPassword(ctx context.Context, input *ResetPasswordRequest) (*ResetPasswordResponse, error) {
-	err := c.service.ResetPassword(ctx, input.Email, input.ConfirmationCode, input.NewPassword)
+	err := c.service.ResetPassword(ctx, input.Body.Email, input.Body.ConfirmationCode, input.Body.NewPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (c *Controller) ChangePassword(ctx context.Context, input *ChangePasswordRe
 	// Get access token from context
 	token, _ := middleware.GetTokenFromContext(ctx)
 
-	err := c.service.ChangePassword(ctx, claims.UserID, token, input.CurrentPassword, input.NewPassword)
+	err := c.service.ChangePassword(ctx, claims.UserID, token, input.Body.CurrentPassword, input.Body.NewPassword)
 	if err != nil {
 		return nil, err
 	}

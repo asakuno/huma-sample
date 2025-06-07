@@ -19,8 +19,10 @@ type SignUpResponse struct {
 
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Email    string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
-	Password string `json:"password" minLength:"1" doc:"User password" example:"MySecurePass123!"`
+	Body struct {
+		Email    string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+		Password string `json:"password" minLength:"1" doc:"User password" example:"MySecurePass123!"`
+	}
 }
 
 // LoginResponse represents the login response
@@ -31,7 +33,9 @@ type LoginResponse struct {
 
 // RefreshTokenRequest represents the refresh token request
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" minLength:"1" doc:"Refresh token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	Body struct {
+		RefreshToken string `json:"refresh_token" minLength:"1" doc:"Refresh token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	}
 }
 
 // RefreshTokenResponse represents the refresh token response
@@ -41,7 +45,9 @@ type RefreshTokenResponse struct {
 
 // ForgotPasswordRequest represents the forgot password request
 type ForgotPasswordRequest struct {
-	Email string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+	Body struct {
+		Email string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+	}
 }
 
 // ForgotPasswordResponse represents the forgot password response
@@ -52,9 +58,11 @@ type ForgotPasswordResponse struct {
 
 // ResetPasswordRequest represents the reset password request
 type ResetPasswordRequest struct {
-	Email            string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
-	ConfirmationCode string `json:"confirmation_code" minLength:"1" maxLength:"10" pattern:"^[0-9]+$" doc:"Confirmation code from email (numeric)" example:"123456"`
-	NewPassword      string `json:"new_password" minLength:"8" maxLength:"128" doc:"New password (minimum 8 characters)" example:"MyNewSecurePass123!"`
+	Body struct {
+		Email            string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+		ConfirmationCode string `json:"confirmation_code" minLength:"1" maxLength:"10" pattern:"^[0-9]+$" doc:"Confirmation code from email (numeric)" example:"123456"`
+		NewPassword      string `json:"new_password" minLength:"8" maxLength:"128" doc:"New password (minimum 8 characters)" example:"MyNewSecurePass123!"`
+	}
 }
 
 // ResetPasswordResponse represents the reset password response
@@ -65,8 +73,10 @@ type ResetPasswordResponse struct {
 
 // ChangePasswordRequest represents the change password request (for authenticated users)
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" minLength:"1" doc:"Current password" example:"MyOldPassword123!"`
-	NewPassword     string `json:"new_password" minLength:"8" maxLength:"128" doc:"New password (minimum 8 characters)" example:"MyNewPassword123!"`
+	Body struct {
+		CurrentPassword string `json:"current_password" minLength:"1" doc:"Current password" example:"MyOldPassword123!"`
+		NewPassword     string `json:"new_password" minLength:"8" maxLength:"128" doc:"New password (minimum 8 characters)" example:"MyNewPassword123!"`
+	}
 }
 
 // ChangePasswordResponse represents the change password response
@@ -77,8 +87,10 @@ type ChangePasswordResponse struct {
 
 // VerifyEmailRequest represents the email verification request
 type VerifyEmailRequest struct {
-	Email            string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
-	ConfirmationCode string `json:"confirmation_code" minLength:"1" maxLength:"10" pattern:"^[0-9]+$" doc:"Confirmation code from email (numeric)" example:"123456"`
+	Body struct {
+		Email            string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+		ConfirmationCode string `json:"confirmation_code" minLength:"1" maxLength:"10" pattern:"^[0-9]+$" doc:"Confirmation code from email (numeric)" example:"123456"`
+	}
 }
 
 // VerifyEmailResponse represents the email verification response
@@ -89,7 +101,9 @@ type VerifyEmailResponse struct {
 
 // LogoutRequest represents the logout request
 type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token,omitempty" doc:"Optional refresh token to invalidate" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	Body struct {
+		RefreshToken string `json:"refresh_token,omitempty" doc:"Optional refresh token to invalidate" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	}
 }
 
 // LogoutResponse represents the logout response

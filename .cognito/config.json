@@ -1,0 +1,29 @@
+{
+  "UserPools": {
+    "local_test_pool": {
+      "Id": "local_test_pool",
+      "Name": "local_test_pool",
+      "UsernameAttributes": ["email"],
+      "Policies": {
+        "PasswordPolicy": {
+          "MinimumLength": 8,
+          "RequireUppercase": true,
+          "RequireLowercase": true,
+          "RequireNumbers": true,
+          "RequireSymbols": true
+        }
+      },
+      "UsernameConfiguration": {
+        "CaseSensitive": false
+      },
+      "Clients": {
+        "local_test_client": {
+          "ClientId": "local_test_client",
+          "ClientName": "local_test_client",
+          "ExplicitAuthFlows": ["ADMIN_NO_SRP_AUTH", "ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
+          "GenerateSecret": false
+        }
+      }
+    }
+  }
+}
