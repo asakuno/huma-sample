@@ -25,11 +25,21 @@ jobs:
 
     env:
       APP_ENV: testing
-      DB_HOST: mysql
+      APP_NAME: huma-sample-test
+      IS_LOGGER: true
+      DB_HOST: 127.0.0.1
       DB_USER: root
       DB_PASS: password
       DB_NAME: test_go_api
       DB_PORT: 3306
+      GOLANG_PORT: 8888
+      JWT_SECRET: test_secret_key_for_ci
+      # Cognito settings for testing
+      USE_COGNITO_LOCAL: false
+      AWS_REGION: ap-northeast-1
+      COGNITO_USER_POOL_ID: test_pool_id
+      COGNITO_APP_CLIENT_ID: test_client_id
+      COGNITO_APP_CLIENT_SECRET: test_client_secret
     steps:
     - uses: actions/checkout@v4
 
@@ -41,14 +51,22 @@ jobs:
     - name: Copy .env.example to .env
       run: test -f .env || cp .env.example .env
 
-    - name: Update hosts file
-      run: echo "127.0.0.1 mysql" | sudo tee -a /etc/hosts
+    - name: Wait for MySQL to be ready
+      run: |
+        for i in {1..30}; do
+          if mysqladmin ping -h127.0.0.1 -uroot -ppassword --silent; then
+            echo "MySQL is ready!"
+            break
+          fi
+          echo "Waiting for MySQL... ($i/30)"
+          sleep 2
+        done
 
     - name: Build
       run: go mod tidy && go build -v ./...
 
     - name: Run database migrations
-      run: go run main.go --migrate
+      run: go run ./cmd/server/main.go --migrate
 
     - name: Run all module tests
       run: |
