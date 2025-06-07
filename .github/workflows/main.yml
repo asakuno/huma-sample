@@ -1,0 +1,99 @@
+name: Debug
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_go_api
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    env:
+      APP_ENV: testing
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASS: password
+      DB_NAME: test_go_api
+      DB_PORT: 3306
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24.1
+
+    - name: Copy .env.example to .env
+      run: test -f .env || cp .env.example .env
+
+    - name: Update hosts file
+      run: echo "127.0.0.1 mysql" | sudo tee -a /etc/hosts
+
+    - name: Build
+      run: go mod tidy && go build -v ./...
+
+    - name: Run database migrations
+      run: go run main.go --migrate
+
+    - name: Run all module tests
+      run: |
+        echo "Discovering and running tests for all modules..."
+
+        # Find all test directories and run tests
+        for test_dir in $(find ./app/modules -name "tests" -type d); do
+          if [ -n "$(find "$test_dir" -name "*_test.go" -type f)" ]; then
+            echo "Running tests in: $test_dir"
+            go test -v "$test_dir/"
+          fi
+        done
+
+        echo "Running comprehensive test coverage for all modules..."
+        go test -v -coverprofile=coverage.out ./app/modules/...
+
+    - name: Run benchmark tests
+      run: |
+        echo "Running benchmark tests for all modules..."
+        for test_dir in $(find ./app/modules -name "tests" -type d); do
+          if [ -n "$(find "$test_dir" -name "*benchmark*_test.go" -type f)" ]; then
+            echo "Running benchmarks in: $test_dir"
+            go test -v -bench=. -benchmem "$test_dir/"
+          fi
+        done
+
+    - name: Run integration tests
+      run: |
+        echo "Running integration tests for all modules..."
+        for test_dir in $(find ./app/modules -name "tests" -type d); do
+          if [ -n "$(find "$test_dir" -name "*integration*_test.go" -type f)" ]; then
+            echo "Running integration tests in: $test_dir"
+            go test -v "$test_dir/" -run "Integration"
+          fi
+        done
+
+    - name: Generate test coverage report
+      run: |
+        go tool cover -html=coverage.out -o coverage.html
+        go tool cover -func=coverage.out
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: |
+          coverage.out
+          coverage.html
