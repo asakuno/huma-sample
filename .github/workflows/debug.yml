@@ -53,14 +53,24 @@ jobs:
 
     - name: Wait for MySQL to be ready
       run: |
-        for i in {1..30}; do
+        echo "Waiting for MySQL service to be fully ready..."
+        sleep 10
+        for i in {1..60}; do
           if mysqladmin ping -h127.0.0.1 -uroot -ppassword --silent; then
             echo "MySQL is ready!"
+            # Additional wait to ensure stability
+            sleep 5
             break
           fi
-          echo "Waiting for MySQL... ($i/30)"
-          sleep 2
+          echo "Waiting for MySQL... ($i/60)"
+          sleep 3
         done
+        
+        # Final verification
+        if ! mysqladmin ping -h127.0.0.1 -uroot -ppassword --silent; then
+          echo "MySQL failed to start properly"
+          exit 1
+        fi
 
     - name: Build
       run: go mod tidy && go build -v ./...
@@ -68,6 +78,23 @@ jobs:
     - name: Run database migrations
       run: go run ./cmd/server/main.go --migrate
 
+    - name: Debug environment
+      run: |
+        echo "=== Environment Information ==="
+        echo "Go version: $(go version)"
+        echo "GOOS: $GOOS"
+        echo "GOARCH: $GOARCH"
+        echo "PWD: $PWD"
+        echo "Environment variables:"
+        env | grep -E '^(APP_|DB_|JWT_|COGNITO_|USE_)' || echo "No matching env vars found"
+        echo ""
+        echo "=== Database Connection Test ==="
+        mysqladmin ping -h127.0.0.1 -uroot -ppassword --silent && echo "MySQL connection: OK" || echo "MySQL connection: FAILED"
+        echo ""
+        echo "=== Go Dependencies ==="
+        go mod verify
+        echo ""
+        
     - name: Run all module tests
       run: |
         echo "Discovering and running tests for all modules..."
@@ -75,13 +102,29 @@ jobs:
         # Find all test directories and run tests
         for test_dir in $(find ./app/modules -name "tests" -type d); do
           if [ -n "$(find "$test_dir" -name "*_test.go" -type f)" ]; then
-            echo "Running tests in: $test_dir"
-            go test -v "$test_dir/"
+            echo "=== Running tests in: $test_dir ==="
+            echo "Test files found:"
+            find "$test_dir" -name "*_test.go" -type f
+            echo ""
+            
+            # Run tests with more verbose output and timeout
+            go test -v -timeout=10m "$test_dir/" || {
+              echo "❌ Tests failed in $test_dir"
+              echo "Exit code: $?"
+              
+              # Try to get more information about the failure
+              echo "Retrying with more verbose output..."
+              go test -v -timeout=5m -count=1 "$test_dir/" || true
+              
+              exit 1
+            }
+            echo "✅ Tests passed in $test_dir"
+            echo ""
           fi
         done
 
         echo "Running comprehensive test coverage for all modules..."
-        go test -v -coverprofile=coverage.out ./app/modules/...
+        go test -v -timeout=30m -coverprofile=coverage.out ./app/modules/...
 
     - name: Run benchmark tests
       run: |
