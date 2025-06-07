@@ -102,16 +102,22 @@ func JWT(config AuthConfig) func(ctx huma.Context, next func(huma.Context)) {
 			return
 		}
 
-		// Validate token
-		claims, err := utils.ValidateJWT(token, config.JWTSecret)
+		// Parse Cognito JWT to extract user information
+		cognitoClaims, err := utils.ParseCognitoJWT(token)
 		if err != nil {
-			handleAuthError(ctx, errors.NewUnauthorizedError("Invalid or expired token"))
+			handleAuthError(ctx, errors.NewUnauthorizedError("Invalid token format"))
 			return
 		}
 
-		// Create a new context with user info
-		newCtx := context.WithValue(ctx.Context(), UserContextKey, claims)
-		newCtx = context.WithValue(newCtx, TokenContextKey, token)
+		// Store the token in context
+		newCtx := context.WithValue(ctx.Context(), TokenContextKey, token)
+		
+		// Create user claims from Cognito JWT
+		claims := &utils.JWTClaims{
+			Email:     cognitoClaims.Email,
+			CognitoID: cognitoClaims.Sub,
+		}
+		newCtx = context.WithValue(newCtx, UserContextKey, claims)
 
 		// Create a new Huma context with the updated context
 		wrappedCtx := huma.WithContext(ctx, newCtx)
@@ -139,11 +145,15 @@ func OptionalAuth(jwtSecret string) func(ctx huma.Context, next func(huma.Contex
 			token = auth[7:]
 		}
 
-		// If token exists, validate it
+		// If token exists, parse it
 		if token != "" {
-			claims, err := utils.ValidateJWT(token, config.JWTSecret)
+			cognitoClaims, err := utils.ParseCognitoJWT(token)
 			if err == nil {
 				// Valid token, add to context
+				claims := &utils.JWTClaims{
+					Email:     cognitoClaims.Email,
+					CognitoID: cognitoClaims.Sub,
+				}
 				newCtx := context.WithValue(ctx.Context(), UserContextKey, claims)
 				newCtx = context.WithValue(newCtx, TokenContextKey, token)
 				ctx = huma.WithContext(ctx, newCtx)

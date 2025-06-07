@@ -17,8 +17,10 @@ type Service interface {
 	ForgotPassword(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, email, confirmationCode, newPassword string) error
 	ChangePassword(ctx context.Context, userID uint, accessToken, currentPassword, newPassword string) error
+	ChangePasswordByEmail(ctx context.Context, email, accessToken, currentPassword, newPassword string) error
 	Logout(ctx context.Context, accessToken string) error
 	GetUserFromToken(ctx context.Context, accessToken string) (*AuthUser, error)
+	GetUserByEmail(ctx context.Context, email string) (*AuthUser, error)
 }
 
 // PasswordRules defines password validation rules
@@ -316,6 +318,63 @@ func (s *AuthService) GetUserFromToken(ctx context.Context, accessToken string) 
 		UpdatedAt:     user.UpdatedAt,
 		LastLoginAt:   user.LastLoginAt,
 	}, nil
+}
+
+// GetUserByEmail retrieves user information by email
+func (s *AuthService) GetUserByEmail(ctx context.Context, email string) (*AuthUser, error) {
+	// Get user from database
+	user, err := s.repo.GetUserByEmail(email)
+	if err != nil {
+		return nil, errors.NewNotFoundError("User")
+	}
+
+	return &AuthUser{
+		ID:            user.ID,
+		Email:         user.Email,
+		Username:      user.Name,
+		EmailVerified: true, // Since they have a token, email must be verified
+		IsActive:      user.IsActive,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
+		LastLoginAt:   user.LastLoginAt,
+	}, nil
+}
+
+// ChangePasswordByEmail changes the user's password using email (for authenticated users)
+func (s *AuthService) ChangePasswordByEmail(ctx context.Context, email, accessToken, currentPassword, newPassword string) error {
+	// Validate password strength
+	if validationErrors := s.validatePassword(newPassword); len(validationErrors) > 0 {
+		return errors.NewPasswordTooWeakError()
+	}
+
+	// Get user from database by email
+	user, err := s.repo.GetUserByEmail(email)
+	if err != nil {
+		return errors.NewNotFoundError("User")
+	}
+
+	// Verify current password with local hash
+	if !utils.CheckPasswordHash(currentPassword, user.Password) {
+		return errors.NewBadRequestError("Current password is incorrect")
+	}
+
+	// Change password in Cognito
+	if err := s.repo.ChangePassword(ctx, accessToken, currentPassword, newPassword); err != nil {
+		return errors.WrapError(err, 400, "Failed to change password")
+	}
+
+	// Update password hash in database
+	hashedPassword, err := utils.HashPassword(newPassword)
+	if err != nil {
+		return errors.NewInternalServerError("Failed to process password")
+	}
+
+	user.Password = hashedPassword
+	if err := s.repo.UpdateUser(user); err != nil {
+		return errors.WrapError(err, 500, "Failed to update user password")
+	}
+
+	return nil
 }
 
 // validatePassword validates password against configured rules

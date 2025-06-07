@@ -108,7 +108,8 @@ func (c *Controller) ChangePassword(ctx context.Context, input *ChangePasswordRe
 	// Get access token from context
 	token, _ := middleware.GetTokenFromContext(ctx)
 
-	err := c.service.ChangePassword(ctx, claims.UserID, token, input.Body.CurrentPassword, input.Body.NewPassword)
+	// Use email-based password change
+	err := c.service.ChangePasswordByEmail(ctx, claims.Email, token, input.Body.CurrentPassword, input.Body.NewPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -141,13 +142,14 @@ func (c *Controller) Logout(ctx context.Context, input *LogoutRequest) (*LogoutR
 
 // GetProfile retrieves the authenticated user's profile
 func (c *Controller) GetProfile(ctx context.Context, input *struct{}) (*AuthUser, error) {
-	// Get access token from context
-	token, ok := middleware.GetTokenFromContext(ctx)
+	// Get user claims from context
+	claims, ok := middleware.GetUserFromContext(ctx)
 	if !ok {
 		return nil, errors.NewUnauthorizedError("Authentication required")
 	}
 
-	user, err := c.service.GetUserFromToken(ctx, token)
+	// Get user from database using email from token
+	user, err := c.service.GetUserByEmail(ctx, claims.Email)
 	if err != nil {
 		return nil, err
 	}

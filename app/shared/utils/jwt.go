@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -94,4 +96,50 @@ func ExtractTokenFromAuthHeader(authHeader string) (string, error) {
 		return "", errors.New("invalid authorization header format")
 	}
 	return authHeader[7:], nil
+}
+
+// CognitoJWTClaims represents Cognito JWT token claims
+type CognitoJWTClaims struct {
+	Email            string `json:"email"`
+	CognitoUsername  string `json:"cognito:username"`
+	TokenUse         string `json:"token_use"`
+	AuthTime         int64  `json:"auth_time"`
+	Iss              string `json:"iss"`
+	Exp              int64  `json:"exp"`
+	Iat              int64  `json:"iat"`
+	ClientID         string `json:"client_id"`
+	Sub              string `json:"sub"`
+	jwt.RegisteredClaims
+}
+
+// ParseCognitoJWT parses a Cognito JWT token without validation (for local development)
+// In production, you should validate the signature properly
+func ParseCognitoJWT(tokenString string) (*CognitoJWTClaims, error) {
+	// Split the token into parts
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("invalid JWT token format")
+	}
+
+	// Decode the payload (second part)
+	payload := parts[1]
+	
+	// Add padding if necessary for base64 decoding
+	for len(payload)%4 != 0 {
+		payload += "="
+	}
+
+	// Parse using jwt library without validation (for local development)
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &CognitoJWTClaims{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract claims
+	claims, ok := token.Claims.(*CognitoJWTClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
+	}
+
+	return claims, nil
 }
