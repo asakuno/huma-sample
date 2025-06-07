@@ -21,7 +21,7 @@ func NewController(service Service) *Controller {
 
 // SignUp handles user registration
 func (c *Controller) SignUp(ctx context.Context, input *SignUpRequest) (*SignUpResponse, error) {
-	cognitoUserID, err := c.service.SignUp(ctx, input.Email, input.Username, input.Password, input.Name)
+	cognitoUserID, err := c.service.SignUp(ctx, input.Body.Email, input.Body.Username, input.Body.Password, input.Body.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,9 @@ func (c *Controller) GetProfile(ctx context.Context, input *struct{}) (*AuthUser
 }
 
 // HealthCheck provides health status for auth service
-func (c *Controller) HealthCheck(ctx context.Context, input *struct{}) (*HealthCheckResponse, error) {
+func (c *Controller) HealthCheck(ctx context.Context, input *struct{}) (*struct {
+	Body HealthCheckResponse `json:"body"`
+}, error) {
 	// You could add actual health checks here
 	checks := map[string]HealthCheckDetail{
 		"service": {
@@ -169,11 +171,17 @@ func (c *Controller) HealthCheck(ctx context.Context, input *struct{}) (*HealthC
 		},
 	}
 
-	return &HealthCheckResponse{
-		Status:  "ok",
-		Service: "auth",
-		Checks:  checks,
-	}, nil
+	response := &struct {
+		Body HealthCheckResponse `json:"body"`
+	}{
+		Body: HealthCheckResponse{
+			Status:  "ok",
+			Service: "auth",
+			Checks:  checks,
+		},
+	}
+
+	return response, nil
 }
 
 // Helper function to dereference string pointer safely

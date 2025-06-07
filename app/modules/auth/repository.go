@@ -60,9 +60,12 @@ func NewAuthRepository(db *gorm.DB, cognitoClient *cognitoidentityprovider.Clien
 
 // SignUp registers a new user with Cognito
 func (r *AuthRepository) SignUp(ctx context.Context, email, username, password string) (*string, error) {
+	// Always use email as username for local Cognito compatibility
+	cognitoUsername := email
+
 	input := &cognitoidentityprovider.SignUpInput{
 		ClientId: aws.String(r.appClientID),
-		Username: aws.String(username),
+		Username: aws.String(cognitoUsername),
 		Password: aws.String(password),
 		UserAttributes: []types.AttributeType{
 			{
@@ -73,7 +76,7 @@ func (r *AuthRepository) SignUp(ctx context.Context, email, username, password s
 	}
 
 	if r.appClientSecret != "" {
-		input.SecretHash = aws.String(calculateSecretHash(username, r.appClientID, r.appClientSecret))
+		input.SecretHash = aws.String(calculateSecretHash(cognitoUsername, r.appClientID, r.appClientSecret))
 	}
 
 	output, err := r.cognitoClient.SignUp(ctx, input)
@@ -86,29 +89,46 @@ func (r *AuthRepository) SignUp(ctx context.Context, email, username, password s
 
 // ConfirmSignUp confirms a user's email address
 func (r *AuthRepository) ConfirmSignUp(ctx context.Context, username, confirmationCode string) error {
+	// Get user by username to find email for Cognito
+	user, err := r.GetUserByUsername(username)
+	if err != nil {
+		return err
+	}
+	
+	// Always use email as cognito username for consistency
+	cognitoUsername := user.Email
+
 	input := &cognitoidentityprovider.ConfirmSignUpInput{
 		ClientId:         aws.String(r.appClientID),
-		Username:         aws.String(username),
+		Username:         aws.String(cognitoUsername),
 		ConfirmationCode: aws.String(confirmationCode),
 	}
 
 	if r.appClientSecret != "" {
-		input.SecretHash = aws.String(calculateSecretHash(username, r.appClientID, r.appClientSecret))
+		input.SecretHash = aws.String(calculateSecretHash(cognitoUsername, r.appClientID, r.appClientSecret))
 	}
 
-	_, err := r.cognitoClient.ConfirmSignUp(ctx, input)
-	return err
+	_, confirmErr := r.cognitoClient.ConfirmSignUp(ctx, input)
+	return confirmErr
 }
 
 // SignIn authenticates a user with Cognito
 func (r *AuthRepository) SignIn(ctx context.Context, username, password string) (*CognitoTokens, error) {
+	// For local Cognito, use email directly as username
+	// For production, use the provided username
+	cognitoUsername := username
+	if r.appClientSecret == "" {
+		// This is local Cognito, username is already email
+		cognitoUsername = username
+	}
+
 	authParams := map[string]string{
-		"USERNAME": username,
+		"USERNAME": cognitoUsername,
 		"PASSWORD": password,
 	}
 
 	if r.appClientSecret != "" {
-		authParams["SECRET_HASH"] = calculateSecretHash(username, r.appClientID, r.appClientSecret)
+		authParams["SECRET_HASH"] = calculateSecretHash(cognitoUsername, r.appClientID, r.appClientSecret)
 	}
 
 	input := &cognitoidentityprovider.InitiateAuthInput{
@@ -164,34 +184,52 @@ func (r *AuthRepository) RefreshToken(ctx context.Context, refreshToken string) 
 
 // ForgotPassword initiates the forgot password flow
 func (r *AuthRepository) ForgotPassword(ctx context.Context, username string) error {
+	// Get user by username to find email for Cognito
+	user, err := r.GetUserByUsername(username)
+	if err != nil {
+		return err
+	}
+	
+	// Always use email as cognito username for consistency
+	cognitoUsername := user.Email
+
 	input := &cognitoidentityprovider.ForgotPasswordInput{
 		ClientId: aws.String(r.appClientID),
-		Username: aws.String(username),
+		Username: aws.String(cognitoUsername),
 	}
 
 	if r.appClientSecret != "" {
-		input.SecretHash = aws.String(calculateSecretHash(username, r.appClientID, r.appClientSecret))
+		input.SecretHash = aws.String(calculateSecretHash(cognitoUsername, r.appClientID, r.appClientSecret))
 	}
 
-	_, err := r.cognitoClient.ForgotPassword(ctx, input)
-	return err
+	_, forgotErr := r.cognitoClient.ForgotPassword(ctx, input)
+	return forgotErr
 }
 
 // ConfirmForgotPassword confirms the forgot password with a confirmation code
 func (r *AuthRepository) ConfirmForgotPassword(ctx context.Context, username, confirmationCode, newPassword string) error {
+	// Get user by username to find email for Cognito
+	user, err := r.GetUserByUsername(username)
+	if err != nil {
+		return err
+	}
+	
+	// Always use email as cognito username for consistency
+	cognitoUsername := user.Email
+
 	input := &cognitoidentityprovider.ConfirmForgotPasswordInput{
 		ClientId:         aws.String(r.appClientID),
-		Username:         aws.String(username),
+		Username:         aws.String(cognitoUsername),
 		ConfirmationCode: aws.String(confirmationCode),
 		Password:         aws.String(newPassword),
 	}
 
 	if r.appClientSecret != "" {
-		input.SecretHash = aws.String(calculateSecretHash(username, r.appClientID, r.appClientSecret))
+		input.SecretHash = aws.String(calculateSecretHash(cognitoUsername, r.appClientID, r.appClientSecret))
 	}
 
-	_, err := r.cognitoClient.ConfirmForgotPassword(ctx, input)
-	return err
+	_, confirmForgotErr := r.cognitoClient.ConfirmForgotPassword(ctx, input)
+	return confirmForgotErr
 }
 
 // ChangePassword changes the user's password

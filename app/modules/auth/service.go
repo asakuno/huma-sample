@@ -132,8 +132,8 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*AuthU
 		return nil, nil, errors.NewUserNotActiveError()
 	}
 
-	// Authenticate with Cognito
-	cognitoTokens, err := s.repo.SignIn(ctx, user.Name, password)
+	// Authenticate with Cognito - use email for local Cognito
+	cognitoTokens, err := s.repo.SignIn(ctx, email, password)
 	if err != nil {
 		return nil, nil, errors.NewInvalidCredentialsError()
 	}
@@ -321,6 +321,10 @@ func (s *AuthService) GetUserFromToken(ctx context.Context, accessToken string) 
 // validatePassword validates password against configured rules
 func (s *AuthService) validatePassword(password string) []string {
 	var errors []string
+	
+	// Debug logging
+	println("DEBUG: validatePassword called with password:", password)
+	println("DEBUG: password length:", len(password))
 	
 	if len(password) < s.passwordRules.MinLength {
 		errors = append(errors, "Password must be at least 8 characters long")

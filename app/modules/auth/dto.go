@@ -2,10 +2,12 @@ package auth
 
 // SignUpRequest represents the sign up request payload
 type SignUpRequest struct {
-	Email    string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
-	Username string `json:"username" minLength:"3" maxLength:"50" pattern:"^[a-zA-Z0-9_-]+$" doc:"Username (alphanumeric, underscore, hyphen)" example:"john_doe"`
-	Password string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)" example:"MySecurePass123!"`
-	Name     string `json:"name" minLength:"2" maxLength:"100" doc:"Full name" example:"John Doe"`
+	Body struct {
+		Email    string `json:"email" format:"email" doc:"User email address" example:"user@example.com"`
+		Username string `json:"username" minLength:"3" maxLength:"50" pattern:"^[a-zA-Z0-9_-]+$" doc:"Username (alphanumeric, underscore, hyphen)" example:"john_doe"`
+		Password string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)" example:"MySecurePass123!"`
+		Name     string `json:"name" minLength:"2" maxLength:"100" doc:"Full name" example:"John Doe"`
+	}
 }
 
 // SignUpResponse represents the sign up response
